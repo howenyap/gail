@@ -133,11 +133,7 @@ impl<'a> Iterator for Lexer<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.next_token();
-        if token.token_type() == &crate::token::TokenType::Eof {
-            None
-        } else {
-            Some(token)
-        }
+        if token.is_eof() { None } else { Some(token) }
     }
 }
 

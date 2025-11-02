@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq)]
+use std::fmt::{self, Display};
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 
 pub enum TokenType {
     Illegal,
@@ -37,10 +39,10 @@ pub enum TokenType {
     False,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Token<'a> {
-    token_type: TokenType,
-    literal: &'a str,
+    pub token_type: TokenType,
+    pub literal: &'a str,
 }
 
 impl Token<'_> {
@@ -98,6 +100,10 @@ impl Token<'_> {
     pub fn symbols() -> &'static [u8] {
         b"=+-!*/<>(){},;"
     }
+
+    pub fn is_eof(&self) -> bool {
+        self.token_type == Eof
+    }
 }
 
 macro_rules! implement_create_token {
@@ -149,4 +155,10 @@ implement_create_token! {
     (Return, "return", r#return),
     (True, "true", r#true),
     (False, "false", r#false),
+}
+
+impl<'a> Display for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.token_type())
+    }
 }
