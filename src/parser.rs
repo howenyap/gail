@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Identifier, LetStatement, Program, Statement};
+use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
 use crate::lexer::Lexer;
 use crate::token::Token;
 use crate::token::TokenType;
@@ -80,6 +80,7 @@ impl<'a> Parser<'a> {
     fn parse_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
         match self.current_token.token_type() {
             TokenType::Let => self.parse_let_statement(),
+            TokenType::Return => self.parse_return_statement(),
             _ => Err(ParseError::UnknownStatement {
                 token: self.current_token,
             }),
@@ -97,12 +98,25 @@ impl<'a> Parser<'a> {
         let name = Identifier::new(ident_token);
 
         self.expect_peek(TokenType::Assign)?;
-        self.advance_until_current_is(TokenType::Semicolon)?;
 
         let value = self.parse_expression()?;
         let let_statement = LetStatement::new(let_token, name, value);
 
+        self.advance_until_current_is(TokenType::Semicolon)?;
+
         Ok(Statement::Let(let_statement))
+    }
+
+    fn parse_return_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
+        let return_token = self.current_token;
+        self.next_token();
+
+        let value = self.parse_expression()?;
+        let return_statement = ReturnStatement::new(return_token, value);
+
+        self.advance_until_current_is(TokenType::Semicolon)?;
+
+        Ok(Statement::Return(return_statement))
     }
 
     fn curr_token_is(&self, token_type: TokenType) -> bool {
@@ -159,7 +173,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Statement;
+    use crate::ast::{Node, Statement};
 
     #[test]
     fn test_let_statements() {
@@ -180,11 +194,57 @@ let foobar = 838383;"#;
     }
 
     fn test_let_statement(stmt: &Statement, name: &str) {
-        let Statement::Let(let_stmt) = stmt;
+        let Statement::Let(let_stmt) = stmt else {
+            panic!("expected let statement, got {stmt:?}");
+        };
 
         assert_eq!(let_stmt.token_literal(), "let");
         assert_eq!(let_stmt.name.value, name);
         assert_eq!(let_stmt.name.token_literal(), name);
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let input = r#"return 5;
+return 10;
+return 993322;"#;
+
+        let mut parser = Parser::new(Lexer::new(input));
+        let program = parser.parse_program().unwrap();
+        check_parser_errors(&parser);
+        assert_eq!(program.statements.len(), 3);
+
+        let tests = vec!["5", "10", "993322"];
+
+        for (expected_value, statement) in tests.iter().zip(program.statements.iter()) {
+            test_return_statement(statement, expected_value);
+        }
+    }
+
+    fn test_return_statement(stmt: &Statement, value: &str) {
+        let Statement::Return(return_stmt) = stmt else {
+            panic!("expected return statement, got {stmt:?}");
+        };
+
+        assert_eq!(return_stmt.token_literal(), "return");
+        // assert_eq!(return_stmt.value.token_literal(), value);
+    }
+
+    #[test]
+    fn test_string() {}
+
+    #[test]
+    fn test_program() {
+        let let_stmt = LetStatement::new(
+            Token::from_keyword("let"),
+            Identifier::new(Token::from_keyword("myVar")),
+            Expression::Identifier(Identifier::new(Token::from_keyword("anotherVar"))),
+        );
+        let program = Program {
+            statements: vec![Statement::Let(let_stmt)],
+        };
+
+        assert_eq!(program.to_string(), "let myVar = anotherVar;");
     }
 
     fn check_parser_errors(parser: &Parser) {
