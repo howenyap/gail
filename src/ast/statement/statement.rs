@@ -1,5 +1,6 @@
-use crate::ast::Node;
-use super::{LetStatement, ReturnStatement, ExpressionStatement};
+use super::{ExpressionStatement, LetStatement, ReturnStatement};
+use crate::ast::{Expression, Identifier, Node};
+use crate::token::Token;
 use std::fmt::{self, Display};
 
 #[derive(Debug, PartialEq)]
@@ -7,6 +8,20 @@ pub enum Statement<'a> {
     Let(LetStatement<'a>),
     Return(ReturnStatement<'a>),
     Expression(ExpressionStatement<'a>),
+}
+
+impl<'a> Statement<'a> {
+    pub fn r#let(token: Token<'a>, name: Identifier<'a>, value: Expression<'a>) -> Self {
+        Self::Let(LetStatement::new(token, name, value))
+    }
+
+    pub fn r#return(token: Token<'a>, value: Expression<'a>) -> Self {
+        Self::Return(ReturnStatement::new(token, value))
+    }
+
+    pub fn expression(token: Token<'a>, expression: Expression<'a>) -> Self {
+        Self::Expression(ExpressionStatement::new(token, expression))
+    }
 }
 
 impl<'a> Node for Statement<'a> {
@@ -28,4 +43,3 @@ impl<'a> Display for Statement<'a> {
         }
     }
 }
-

@@ -96,21 +96,32 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_digit(&self) -> bool {
-        self.curr_char()
-            .map(|ch| ch.is_ascii_digit())
-            .unwrap_or(false)
+        matches!(self.curr_char(), Some(ch) if ch.is_ascii_digit())
     }
 
     fn is_symbol(&self) -> bool {
-        self.curr_char()
-            .map(|ch| Token::symbols().contains(ch))
-            .unwrap_or(false)
+        matches!(
+            self.curr_char(),
+            Some(
+                b'=' | b'+'
+                    | b'-'
+                    | b'!'
+                    | b'*'
+                    | b'/'
+                    | b'<'
+                    | b'>'
+                    | b'('
+                    | b')'
+                    | b'{'
+                    | b'}'
+                    | b','
+                    | b';'
+            )
+        )
     }
 
     fn is_letter(&self) -> bool {
-        self.curr_char()
-            .map(|ch| ch.is_ascii_alphabetic() || *ch == b'_')
-            .unwrap_or(false)
+        matches!(self.curr_char(), Some(ch) if ch.is_ascii_alphabetic() || *ch == b'_')
     }
 
     fn is_eof(&self) -> bool {
@@ -118,11 +129,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while self
-            .curr_char()
-            .map(|ch| ch.is_ascii_whitespace())
-            .unwrap_or(false)
-        {
+        while matches!(self.curr_char(), Some(ch) if ch.is_ascii_whitespace()) {
             self.read_char();
         }
     }

@@ -1,4 +1,5 @@
-use crate::ast::{Expression, Identifier, Node, StatementNode};
+use crate::ast::expression::Identifier;
+use crate::ast::{Expression, Node, StatementNode};
 use crate::token::Token;
 use std::fmt::{self, Display};
 
@@ -28,4 +29,3 @@ impl<'a> Display for LetStatement<'a> {
         write!(f, "let {} = {};", self.name.value, self.value)
     }
 }
-

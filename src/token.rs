@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+use crate::ast::Precedence;
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 
 pub enum TokenType {
     Illegal,
@@ -39,7 +40,7 @@ pub enum TokenType {
     False,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub literal: &'a str,
@@ -97,12 +98,18 @@ impl Token<'_> {
         }
     }
 
-    pub fn symbols() -> &'static [u8] {
-        b"=+-!*/<>(){},;"
-    }
-
     pub fn is_eof(&self) -> bool {
         self.token_type == Eof
+    }
+
+    pub fn precedence(&self) -> Precedence {
+        match self.token_type {
+            TokenType::Equal | TokenType::NotEqual => Precedence::Equals,
+            TokenType::LessThan | TokenType::GreaterThan => Precedence::LessGreater,
+            TokenType::Plus | TokenType::Minus => Precedence::Sum,
+            TokenType::Asterisk | TokenType::Slash => Precedence::Product,
+            _ => Precedence::Lowest,
+        }
     }
 }
 

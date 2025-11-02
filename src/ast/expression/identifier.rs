@@ -1,5 +1,5 @@
+use crate::ast::{ExpressionNode, Node};
 use crate::token::Token;
-use crate::ast::Node;
 use std::fmt::{self, Display};
 
 #[derive(Debug, PartialEq)]
@@ -23,9 +23,12 @@ impl Node for Identifier<'_> {
     }
 }
 
+impl ExpressionNode for Identifier<'_> {
+    fn expression_node(&self) {}
+}
+
 impl Display for Identifier<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }
 }
-
