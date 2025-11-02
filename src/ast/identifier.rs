@@ -1,4 +1,4 @@
-use crate::ast::{ExpressionNode, Node};
+use crate::ast::Node;
 use crate::token::Token;
 use std::fmt::{self, Display};
 
@@ -17,17 +17,13 @@ impl<'a> Identifier<'a> {
     }
 }
 
-impl Node for Identifier<'_> {
+impl<'a> Node for Identifier<'a> {
     fn token_literal(&self) -> &str {
         self.token.literal()
     }
 }
 
-impl ExpressionNode for Identifier<'_> {
-    fn expression_node(&self) {}
-}
-
-impl Display for Identifier<'_> {
+impl<'a> Display for Identifier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }

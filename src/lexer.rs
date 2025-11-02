@@ -10,11 +10,14 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
         let bytes = input.as_bytes();
+        let position = 0;
+        let read_position = 1.min(bytes.len());
+
         Self {
             input,
             bytes,
-            position: 0,
-            read_position: 1.min(bytes.len()),
+            position,
+            read_position,
         }
     }
 
@@ -38,7 +41,7 @@ impl<'a> Lexer<'a> {
                     return Token::not_equal();
                 }
                 (Some(ch), _) => {
-                    let token = Token::from_char(*ch);
+                    let token = Token::from_char(ch);
                     self.read_char();
                     return token;
                 }

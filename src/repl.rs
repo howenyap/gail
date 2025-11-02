@@ -23,6 +23,7 @@ impl Repl {
             for token in lexer {
                 writeln!(output, "{token:?}")?;
             }
+
             line.clear();
         }
 

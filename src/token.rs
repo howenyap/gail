@@ -23,6 +23,7 @@ pub enum TokenType {
     LessThan,
     GreaterThan,
 
+    // Delimiters
     Comma,
     Semicolon,
     Lparen,
@@ -55,7 +56,7 @@ impl Token<'_> {
         self.literal
     }
 
-    pub fn from_char(ch: u8) -> Token<'static> {
+    pub fn from_char(ch: &u8) -> Token<'static> {
         match ch {
             b'=' => Token::assign(),
             b'+' => Token::plus(),
@@ -147,6 +148,7 @@ implement_create_token! {
     (Equal, "==", equal),
     (NotEqual, "!=", not_equal),
 
+    // Delimiters
     (Comma, ",", comma),
     (Semicolon, ";", semicolon),
     (Lparen, "(", lparen),
