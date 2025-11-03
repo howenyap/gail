@@ -110,7 +110,7 @@ impl<'a> Parser<'a> {
 
     fn parse_prefix(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
         match self.curr_token_type() {
-            TokenType::Ident => self.parse_identifier(),
+            TokenType::Ident => Ok(self.parse_identifier()),
             TokenType::Int => self.parse_integer_literal(),
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
             _ => Err(ParseError::UnknownPrefixOperator {
@@ -141,8 +141,8 @@ impl<'a> Parser<'a> {
         Ok(Expression::infix(token, left, right))
     }
 
-    fn parse_identifier(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
-        Ok(Expression::ident(self.current_token))
+    fn parse_identifier(&mut self) -> Expression<'a> {
+        Expression::ident(self.current_token)
     }
 
     fn parse_integer_literal(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
@@ -264,21 +264,6 @@ let foobar = 838383;"#;
         }
     }
 
-    fn test_let_statement(stmt: &Statement, name: &str, value: &str) {
-        let Statement::Let {
-            name: stmt_name,
-            value: stmt_value,
-            ..
-        } = stmt
-        else {
-            panic!("expected let statement, got {stmt:?}");
-        };
-
-        assert_eq!(stmt.token_literal(), "let");
-        assert_eq!(stmt_name.token_literal(), name);
-        assert_eq!(stmt_value.token_literal(), value);
-    }
-
     #[test]
     fn test_return_statements() {
         let input = r#"return 5;
@@ -293,19 +278,6 @@ return 993322;"#;
         for (expected_value, statement) in tests.iter().zip(program.statements.iter()) {
             test_return_statement(statement, expected_value);
         }
-    }
-
-    fn test_return_statement(stmt: &Statement, value: &str) {
-        let Statement::Return {
-            value: return_value,
-            ..
-        } = stmt
-        else {
-            panic!("expected return statement, got {stmt:?}");
-        };
-
-        assert_eq!(stmt.token_literal(), "return");
-        assert_eq!(return_value.token_literal(), value);
     }
 
     #[test]
@@ -329,13 +301,8 @@ return 993322;"#;
 
         assert_eq!(program.statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
-
-        let Expression::Ident { .. } = expression else {
-            panic!("expected identifier expression, got {:#?}", expression);
-        };
-
-        assert_eq!(expression.token_literal(), "foobar");
+        let expression = test_expression(&program.statements[0]);
+        test_literal_expression(expression, ExpectedLiteral::String("foobar"));
     }
 
     #[test]
@@ -344,13 +311,8 @@ return 993322;"#;
         let program = build_program(input);
         assert_eq!(program.statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
-
-        let Expression::Int { value, .. } = expression else {
-            panic!("expected integer expression, got {:#?}", expression);
-        };
-
-        assert_eq!(*value, 5);
+        let expression = test_expression(&program.statements[0]);
+        test_literal_expression(expression, ExpectedLiteral::Int(5));
     }
 
     #[test]
@@ -361,7 +323,7 @@ return 993322;"#;
             let program = build_program(input);
             assert_eq!(program.statements.len(), 1);
 
-            let expression = expect_expression(&program.statements[0]);
+            let expression = test_expression(&program.statements[0]);
 
             let Expression::Prefix {
                 operator: op,
@@ -390,21 +352,13 @@ return 993322;"#;
             let program = build_program(input);
             assert_eq!(program.statements.len(), 1);
 
-            let expression = expect_expression(&program.statements[0]);
-
-            let Expression::Infix {
-                left: left_expr,
-                operator: op,
-                right: right_expr,
-                ..
-            } = expression
-            else {
-                panic!("expected infix expression, got {:#?}", expression);
-            };
-
-            test_integer_literal(left_expr, left);
-            assert_eq!(*op, operator);
-            test_integer_literal(right_expr, right);
+            let expression = test_expression(&program.statements[0]);
+            test_infix_expression(
+                expression,
+                ExpectedLiteral::Int(left),
+                operator,
+                ExpectedLiteral::Int(right),
+            );
         }
     }
 
@@ -434,6 +388,27 @@ return 993322;"#;
         }
     }
 
+    // test expression helpers
+    fn test_expression<'a>(stmt: &'a Statement<'a>) -> &'a Expression<'a> {
+        let Statement::Expression { expression, .. } = stmt else {
+            panic!("expected expression statement, got {:#?}", stmt);
+        };
+
+        &expression
+    }
+
+    enum ExpectedLiteral {
+        Int(i64),
+        String(&'static str),
+    }
+
+    fn test_literal_expression(expression: &Expression, expected: ExpectedLiteral) {
+        match expected {
+            ExpectedLiteral::Int(v) => test_integer_literal(expression, v),
+            ExpectedLiteral::String(s) => test_identifier(expression, s),
+        }
+    }
+
     fn test_integer_literal(expression: &Expression, value: i64) {
         let Expression::Int {
             value: expr_value, ..
@@ -445,6 +420,70 @@ return 993322;"#;
         assert_eq!(*expr_value, value);
     }
 
+    fn test_identifier(expression: &Expression, value: &str) {
+        let Expression::Ident {
+            token,
+            value: ident_value,
+        } = expression
+        else {
+            panic!("expected identifier expression, got {:#?}", expression);
+        };
+
+        assert_eq!(token.literal(), value);
+        assert_eq!(ident_value, &value);
+    }
+
+    fn test_infix_expression(
+        expression: &Expression,
+        left: ExpectedLiteral,
+        operator: &str,
+        right: ExpectedLiteral,
+    ) {
+        let Expression::Infix {
+            left: infix_left,
+            operator: infix_op,
+            right: infix_right,
+            ..
+        } = expression
+        else {
+            panic!("expected infix expression, got {:#?}", expression);
+        };
+
+        test_literal_expression(infix_left, left);
+        assert_eq!(infix_op, &operator);
+        test_literal_expression(infix_right, right);
+    }
+
+    // test statement helpers
+    fn test_return_statement(stmt: &Statement, value: &str) {
+        let Statement::Return {
+            value: return_value,
+            ..
+        } = stmt
+        else {
+            panic!("expected return statement, got {stmt:?}");
+        };
+
+        assert_eq!(stmt.token_literal(), "return");
+        assert_eq!(return_value.token_literal(), value);
+    }
+
+    fn test_let_statement(stmt: &Statement, name: &str, value: &str) {
+        let Statement::Let {
+            name: stmt_name,
+            value: stmt_value,
+            ..
+        } = stmt
+        else {
+            panic!("expected let statement, got {stmt:?}");
+        };
+
+        assert_eq!(stmt.token_literal(), "let");
+        assert_eq!(stmt_name.token_literal(), name);
+        assert_eq!(stmt_value.token_literal(), value);
+    }
+
+    // test program helpers
     fn build_program(input: &str) -> Program {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
@@ -461,13 +500,5 @@ return 993322;"#;
 
             panic!("parser has errors");
         }
-    }
-
-    fn expect_expression<'a>(stmt: &'a Statement<'a>) -> &'a Expression<'a> {
-        let Statement::Expression { expression, .. } = stmt else {
-            panic!("expected expression statement, got {:#?}", stmt);
-        };
-
-        &expression
     }
 }

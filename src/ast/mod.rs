@@ -47,8 +47,10 @@ impl<'a> Program<'a> {
     pub fn new(statements: Vec<Statement<'a>>) -> Self {
         Self { statements }
     }
+}
 
-    pub fn token_literal(&self) -> &str {
+impl<'a> Node for Program<'a> {
+    fn token_literal(&self) -> &str {
         self.statements
             .first()
             .map(|stmt| stmt.token_literal())
