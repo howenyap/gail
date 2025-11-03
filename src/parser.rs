@@ -112,6 +112,7 @@ impl<'a> Parser<'a> {
         match self.curr_token_type() {
             TokenType::Ident => Ok(self.parse_identifier()),
             TokenType::Int => self.parse_integer_literal(),
+            TokenType::True | TokenType::False => Ok(self.parse_boolean()),
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
             _ => Err(ParseError::UnknownPrefixOperator {
                 token: self.current_token,
@@ -153,6 +154,13 @@ impl<'a> Parser<'a> {
             .map_err(|_| ParseError::InvalidInteger)?;
 
         Ok(Expression::int(token, value))
+    }
+
+    fn parse_boolean(&mut self) -> Expression<'a> {
+        let token = self.current_token;
+        let value = self.curr_token_is(TokenType::True);
+
+        Expression::bool(token, value)
     }
 
     fn parse_let_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
@@ -317,9 +325,15 @@ return 993322;"#;
 
     #[test]
     fn test_parse_prefix_expression() {
-        let tests = vec![("!5;", "!", 5), ("-15;", "-", 15)];
+        use ExpectedLiteral::*;
+        let tests = vec![
+            ("!5;", "!", Int(5)),
+            ("-15;", "-", Int(15)),
+            ("!true;", "!", Bool(true)),
+            ("!false;", "!", Bool(false)),
+        ];
 
-        for (input, operator, value) in tests {
+        for (input, operator, expected) in tests {
             let program = build_program(input);
             assert_eq!(program.statements.len(), 1);
 
@@ -335,17 +349,21 @@ return 993322;"#;
             };
 
             assert_eq!(*op, operator);
-            test_integer_literal(right, value);
+            test_literal_expression(right, expected);
         }
     }
 
     #[test]
     fn test_parse_infix_expression() {
+        use ExpectedLiteral::*;
         let tests = vec![
-            ("5 + 5;", 5, "+", 5),
-            ("5 - 5;", 5, "-", 5),
-            ("5 * 5;", 5, "*", 5),
-            ("5 / 5;", 5, "/", 5),
+            ("5 + 5;", Int(5), "+", Int(5)),
+            ("5 - 5;", Int(5), "-", Int(5)),
+            ("5 * 5;", Int(5), "*", Int(5)),
+            ("5 / 5;", Int(5), "/", Int(5)),
+            ("true == true", Bool(true), "==", Bool(true)),
+            ("true != false", Bool(true), "!=", Bool(false)),
+            ("false == false", Bool(false), "==", Bool(false)),
         ];
 
         for (input, left, operator, right) in tests {
@@ -353,12 +371,7 @@ return 993322;"#;
             assert_eq!(program.statements.len(), 1);
 
             let expression = test_expression(&program.statements[0]);
-            test_infix_expression(
-                expression,
-                ExpectedLiteral::Int(left),
-                operator,
-                ExpectedLiteral::Int(right),
-            );
+            test_infix_expression(expression, left, operator, right);
         }
     }
 
@@ -380,6 +393,10 @@ return 993322;"#;
                 "3 + 4 * 5 == 3 * 1 + 4 * 5;",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
         ];
 
         for (input, expected) in tests {
@@ -400,12 +417,14 @@ return 993322;"#;
     enum ExpectedLiteral {
         Int(i64),
         String(&'static str),
+        Bool(bool),
     }
 
     fn test_literal_expression(expression: &Expression, expected: ExpectedLiteral) {
         match expected {
             ExpectedLiteral::Int(v) => test_integer_literal(expression, v),
             ExpectedLiteral::String(s) => test_identifier(expression, s),
+            ExpectedLiteral::Bool(b) => test_boolean_expression(expression, b),
         }
     }
 
@@ -433,6 +452,20 @@ return 993322;"#;
         assert_eq!(ident_value, &value);
     }
 
+    fn test_boolean_expression(expression: &Expression, value: bool) {
+        let Expression::Bool {
+            value: expr_value, ..
+        } = expression
+        else {
+            panic!("expected boolean expression, got {:#?}", expression);
+        };
+
+        assert_eq!(*expr_value, value);
+        assert_eq!(
+            expression.token_literal(),
+            if value { "true" } else { "false" }
+        )
+    }
     fn test_infix_expression(
         expression: &Expression,
         left: ExpectedLiteral,

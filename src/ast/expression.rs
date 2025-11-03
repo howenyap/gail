@@ -12,6 +12,10 @@ pub enum Expression<'a> {
         token: Token<'a>,
         value: i64,
     },
+    Bool {
+        token: Token<'a>,
+        value: bool,
+    },
     Prefix {
         token: Token<'a>,
         operator: &'a str,
@@ -37,6 +41,10 @@ impl<'a> Expression<'a> {
         Self::Int { token, value }
     }
 
+    pub fn bool(token: Token<'a>, value: bool) -> Self {
+        Self::Bool { token, value }
+    }
+
     pub fn prefix(token: Token<'a>, right: Expression<'a>) -> Self {
         Self::Prefix {
             token,
@@ -58,6 +66,7 @@ impl<'a> Expression<'a> {
         match self {
             Expression::Ident { token, .. } => token,
             Expression::Int { token, .. } => token,
+            Expression::Bool { token, .. } => token,
             Expression::Prefix { token, .. } => token,
             Expression::Infix { token, .. } => token,
         }
@@ -73,6 +82,7 @@ impl<'a> Node for Expression<'a> {
         match self {
             Expression::Ident { token, .. } => token.literal(),
             Expression::Int { token, .. } => token.literal(),
+            Expression::Bool { token, .. } => token.literal(),
             Expression::Prefix { token, .. } => token.literal(),
             Expression::Infix { token, .. } => token.literal(),
         }
@@ -88,6 +98,7 @@ impl<'a> Display for Expression<'a> {
         match self {
             Expression::Ident { value, .. } => write!(f, "{value}"),
             Expression::Int { token, .. } => write!(f, "{}", token.literal()),
+            Expression::Bool { value, .. } => write!(f, "{value}"),
             Expression::Prefix {
                 operator, right, ..
             } => write!(f, "({operator}{right})"),
