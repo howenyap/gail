@@ -114,6 +114,7 @@ impl<'a> Parser<'a> {
             TokenType::Int => self.parse_integer_literal(),
             TokenType::True | TokenType::False => Ok(self.parse_boolean()),
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
+            TokenType::Lparen => self.parse_grouped_expression(),
             _ => Err(ParseError::UnknownPrefixOperator {
                 token: self.current_token,
             }),
@@ -140,6 +141,16 @@ impl<'a> Parser<'a> {
         let right = self.parse_expression(precedence)?;
 
         Ok(Expression::infix(token, left, right))
+    }
+
+    fn parse_grouped_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+        self.next_token();
+
+        let exp = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(TokenType::Rparen)?;
+
+        Ok(exp)
     }
 
     fn parse_identifier(&mut self) -> Expression<'a> {
@@ -397,6 +408,11 @@ return 993322;"#;
             ("false", "false"),
             ("3 > 5 == false", "((3 > 5) == false)"),
             ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, expected) in tests {
