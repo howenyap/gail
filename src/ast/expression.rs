@@ -2,6 +2,8 @@ use crate::ast::{ExpressionNode, Node};
 use crate::token::Token;
 use std::fmt::{self, Display};
 
+use super::block::Block;
+
 #[derive(Debug, PartialEq)]
 pub enum Expression<'a> {
     Ident {
@@ -15,6 +17,12 @@ pub enum Expression<'a> {
     Bool {
         token: Token<'a>,
         value: bool,
+    },
+    If {
+        token: Token<'a>,
+        condition: Box<Expression<'a>>,
+        consequence: Block<'a>,
+        alternative: Option<Block<'a>>,
     },
     Prefix {
         token: Token<'a>,
@@ -53,6 +61,20 @@ impl<'a> Expression<'a> {
         }
     }
 
+    pub fn r#if(
+        token: Token<'a>,
+        condition: Expression<'a>,
+        consequence: Block<'a>,
+        alternative: Option<Block<'a>>,
+    ) -> Self {
+        Self::If {
+            token,
+            condition: Box::new(condition),
+            consequence,
+            alternative,
+        }
+    }
+
     pub fn infix(token: Token<'a>, left: Expression<'a>, right: Expression<'a>) -> Self {
         Self::Infix {
             token,
@@ -69,6 +91,7 @@ impl<'a> Expression<'a> {
             Expression::Bool { token, .. } => token,
             Expression::Prefix { token, .. } => token,
             Expression::Infix { token, .. } => token,
+            Expression::If { token, .. } => token,
         }
     }
 
@@ -79,13 +102,7 @@ impl<'a> Expression<'a> {
 
 impl<'a> Node for Expression<'a> {
     fn token_literal(&self) -> &str {
-        match self {
-            Expression::Ident { token, .. } => token.literal(),
-            Expression::Int { token, .. } => token.literal(),
-            Expression::Bool { token, .. } => token.literal(),
-            Expression::Prefix { token, .. } => token.literal(),
-            Expression::Infix { token, .. } => token.literal(),
-        }
+        self.token().literal()
     }
 }
 
@@ -108,6 +125,18 @@ impl<'a> Display for Expression<'a> {
                 right,
                 ..
             } => write!(f, "({left} {operator} {right})"),
+            Expression::If {
+                condition,
+                consequence,
+                alternative,
+                ..
+            } => {
+                if let Some(alternative) = alternative {
+                    write!(f, "if {condition} {consequence} else {alternative}")
+                } else {
+                    write!(f, "if {condition} {consequence}")
+                }
+            }
         }
     }
 }

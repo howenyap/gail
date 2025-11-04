@@ -1,7 +1,9 @@
+mod block;
 mod expression;
 mod identifier;
 mod statement;
 
+pub use block::Block;
 pub use expression::Expression;
 pub use identifier::Identifier;
 pub use statement::Statement;

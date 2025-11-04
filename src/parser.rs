@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Identifier, Precedence, Program, Statement};
+use crate::ast::{Block, Expression, Identifier, Precedence, Program, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
@@ -85,7 +85,9 @@ impl<'a> Parser<'a> {
         let token = self.current_token;
         let expression = self.parse_expression(Precedence::Lowest)?;
 
-        self.advance_until(TokenType::Semicolon);
+        if self.peek_token_is(&TokenType::Semicolon) {
+            self.next_token();
+        }
 
         Ok(Statement::expression(token, expression))
     }
@@ -115,6 +117,7 @@ impl<'a> Parser<'a> {
             TokenType::True | TokenType::False => Ok(self.parse_boolean()),
             TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
             TokenType::Lparen => self.parse_grouped_expression(),
+            TokenType::If => self.parse_if_expression(),
             _ => Err(ParseError::UnknownPrefixOperator {
                 token: self.current_token,
             }),
@@ -153,6 +156,28 @@ impl<'a> Parser<'a> {
         Ok(exp)
     }
 
+    fn parse_if_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+        let token = self.current_token;
+
+        self.expect_peek(TokenType::Lparen)?;
+        self.next_token();
+        let condition = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(TokenType::Rparen)?;
+        self.expect_peek(TokenType::Lbrace)?;
+        let consequence = self.parse_block_statement()?;
+
+        let alternative = if self.peek_token_is(&TokenType::Else) {
+            self.next_token();
+            self.expect_peek(TokenType::Lbrace)?;
+            Some(self.parse_block_statement()?)
+        } else {
+            None
+        };
+
+        Ok(Expression::r#if(token, condition, consequence, alternative))
+    }
+
     fn parse_identifier(&mut self) -> Expression<'a> {
         Expression::ident(self.current_token)
     }
@@ -176,7 +201,9 @@ impl<'a> Parser<'a> {
 
     fn parse_let_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
         let token = self.current_token;
-        let name = Identifier::new(self.expect_peek(TokenType::Ident)?);
+
+        self.expect_peek(TokenType::Ident)?;
+        let name = Identifier::new(self.current_token);
 
         self.expect_peek(TokenType::Assign)?;
         self.next_token();
@@ -199,6 +226,19 @@ impl<'a> Parser<'a> {
         Ok(Statement::r#return(token, value))
     }
 
+    fn parse_block_statement(&mut self) -> Result<Block<'a>, ParseError<'a>> {
+        let token = self.current_token;
+        let mut statements = vec![];
+        self.next_token();
+
+        while !self.curr_token_is(TokenType::Rbrace) && !self.current_token.is_eof() {
+            statements.push(self.parse_statement()?);
+            self.next_token();
+        }
+
+        Ok(Block::new(token, statements))
+    }
+
     fn curr_token_is(&self, token_type: TokenType) -> bool {
         self.curr_token_type() == &token_type
     }
@@ -207,10 +247,10 @@ impl<'a> Parser<'a> {
         self.peek_token_type() == token_type
     }
 
-    fn expect_peek(&mut self, token_type: TokenType) -> Result<Token<'a>, ParseError<'a>> {
+    fn expect_peek(&mut self, token_type: TokenType) -> Result<(), ParseError<'a>> {
         if self.peek_token_is(&token_type) {
             self.next_token();
-            Ok(self.current_token)
+            Ok(())
         } else {
             Err(ParseError::UnexpectedToken {
                 found: self.peek_token,
@@ -242,16 +282,11 @@ impl<'a> Parser<'a> {
     }
 
     fn is_infix_operator(&self, token_type: &TokenType) -> bool {
+        use TokenType::*;
+
         matches!(
             token_type,
-            TokenType::Plus
-                | TokenType::Minus
-                | TokenType::Asterisk
-                | TokenType::Slash
-                | TokenType::Equal
-                | TokenType::NotEqual
-                | TokenType::LessThan
-                | TokenType::GreaterThan
+            Plus | Minus | Asterisk | Slash | Equal | NotEqual | LessThan | GreaterThan
         )
     }
 
@@ -419,6 +454,69 @@ return 993322;"#;
             let program = build_program(input);
             assert_eq!(program.to_string(), expected);
         }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) { x }";
+        let program = build_program(input);
+        assert_eq!(program.statements.len(), 1);
+
+        let expression = test_expression(&program.statements[0]);
+        let Expression::If {
+            condition,
+            consequence,
+            alternative,
+            ..
+        } = expression
+        else {
+            panic!("expected if expression, got {:#?}", expression)
+        };
+
+        use ExpectedLiteral::*;
+        test_infix_expression(condition, String("x"), "<", String("y"));
+
+        let statements = consequence.statements();
+        assert_eq!(statements.len(), 1);
+        let expression = test_expression(&statements[0]);
+        test_literal_expression(expression, String("x"));
+
+        assert!(alternative.is_none());
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = "if (x < y) { x } else { y }";
+        let program = build_program(input);
+        assert_eq!(program.statements.len(), 1);
+
+        let expression = test_expression(&program.statements[0]);
+        let Expression::If {
+            condition,
+            consequence,
+            alternative,
+            ..
+        } = expression
+        else {
+            panic!("expected if expression, got {:#?}", expression)
+        };
+
+        use ExpectedLiteral::*;
+        test_infix_expression(condition, String("x"), "<", String("y"));
+
+        let consequence_statements = consequence.statements();
+        assert_eq!(consequence_statements.len(), 1);
+        let consequence_expression = test_expression(&consequence_statements[0]);
+        test_literal_expression(consequence_expression, String("x"));
+
+        let Some(alternative) = alternative else {
+            panic!("expected alternative block, got None");
+        };
+
+        let alternative = alternative.statements();
+        assert_eq!(alternative.len(), 1);
+        let alternative_expression = test_expression(&alternative[0]);
+        test_literal_expression(alternative_expression, String("y"));
     }
 
     // test expression helpers
