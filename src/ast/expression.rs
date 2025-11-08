@@ -2,7 +2,7 @@ use crate::ast::{ExpressionNode, Node};
 use crate::token::Token;
 use std::fmt::{self, Display};
 
-use super::block::Block;
+use super::Statement;
 
 #[derive(Debug, PartialEq)]
 pub enum Expression<'a> {
@@ -21,8 +21,17 @@ pub enum Expression<'a> {
     If {
         token: Token<'a>,
         condition: Box<Expression<'a>>,
-        consequence: Block<'a>,
-        alternative: Option<Block<'a>>,
+        // invariant: expression must be Block
+        consequence: Box<Expression<'a>>,
+        // invariant: expression must be Block
+        alternative: Box<Option<Expression<'a>>>,
+    },
+    Function {
+        token: Token<'a>,
+        // invariant: expression must be Identifier
+        parameters: Vec<Expression<'a>>,
+        // invariant: expression must be Block
+        body: Box<Expression<'a>>,
     },
     Prefix {
         token: Token<'a>,
@@ -34,6 +43,10 @@ pub enum Expression<'a> {
         left: Box<Expression<'a>>,
         operator: &'a str,
         right: Box<Expression<'a>>,
+    },
+    Block {
+        token: Token<'a>,
+        statements: Vec<Statement<'a>>,
     },
 }
 
@@ -64,14 +77,14 @@ impl<'a> Expression<'a> {
     pub fn r#if(
         token: Token<'a>,
         condition: Expression<'a>,
-        consequence: Block<'a>,
-        alternative: Option<Block<'a>>,
+        consequence: Expression<'a>,
+        alternative: Option<Expression<'a>>,
     ) -> Self {
         Self::If {
             token,
             condition: Box::new(condition),
-            consequence,
-            alternative,
+            consequence: Box::new(consequence),
+            alternative: Box::new(alternative),
         }
     }
 
@@ -84,14 +97,32 @@ impl<'a> Expression<'a> {
         }
     }
 
+    pub fn block(token: Token<'a>, statements: Vec<Statement<'a>>) -> Self {
+        Self::Block { token, statements }
+    }
+
+    pub fn function(
+        token: Token<'a>,
+        parameters: Vec<Expression<'a>>,
+        body: Expression<'a>,
+    ) -> Self {
+        Self::Function {
+            token,
+            parameters,
+            body: Box::new(body),
+        }
+    }
+
     pub fn token(&self) -> &Token<'a> {
         match self {
-            Expression::Ident { token, .. } => token,
-            Expression::Int { token, .. } => token,
-            Expression::Bool { token, .. } => token,
-            Expression::Prefix { token, .. } => token,
-            Expression::Infix { token, .. } => token,
-            Expression::If { token, .. } => token,
+            Self::Ident { token, .. } => token,
+            Self::Int { token, .. } => token,
+            Self::Bool { token, .. } => token,
+            Self::Prefix { token, .. } => token,
+            Self::Infix { token, .. } => token,
+            Self::If { token, .. } => token,
+            Self::Function { token, .. } => token,
+            Self::Block { token, .. } => token,
         }
     }
 
@@ -131,11 +162,26 @@ impl<'a> Display for Expression<'a> {
                 alternative,
                 ..
             } => {
-                if let Some(alternative) = alternative {
+                if let Some(alternative) = alternative.as_ref() {
                     write!(f, "if {condition} {consequence} else {alternative}")
                 } else {
                     write!(f, "if {condition} {consequence}")
                 }
+            }
+            Expression::Function {
+                parameters, body, ..
+            } => {
+                let params: String = parameters
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                write!(f, "fn({params}) {body} ")
+            }
+            Expression::Block { statements, .. } => {
+                let s: String = statements.iter().map(|s| s.to_string()).collect();
+                write!(f, "{{{s}}}")
             }
         }
     }

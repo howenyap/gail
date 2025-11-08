@@ -1,4 +1,4 @@
-use crate::ast::{Block, Expression, Identifier, Precedence, Program, Statement};
+use crate::ast::{Expression, Precedence, Program, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
@@ -111,13 +111,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_prefix(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+        use TokenType::*;
+
         match self.curr_token_type() {
-            TokenType::Ident => Ok(self.parse_identifier()),
-            TokenType::Int => self.parse_integer_literal(),
-            TokenType::True | TokenType::False => Ok(self.parse_boolean()),
-            TokenType::Bang | TokenType::Minus => self.parse_prefix_expression(),
-            TokenType::Lparen => self.parse_grouped_expression(),
-            TokenType::If => self.parse_if_expression(),
+            Ident => Ok(self.parse_identifier()),
+            Int => self.parse_integer_literal(),
+            True | False => Ok(self.parse_boolean()),
+            Bang | Minus => self.parse_prefix_expression(),
+            Lparen => self.parse_grouped_expression(),
+            If => self.parse_if_expression(),
+            Function => self.parse_function_literal(),
             _ => Err(ParseError::UnknownPrefixOperator {
                 token: self.current_token,
             }),
@@ -178,6 +181,44 @@ impl<'a> Parser<'a> {
         Ok(Expression::r#if(token, condition, consequence, alternative))
     }
 
+    fn parse_function_literal(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+        let token = self.current_token;
+
+        self.expect_peek(TokenType::Lparen)?;
+
+        let parameters = self.parse_function_parameters()?;
+
+        self.expect_peek(TokenType::Lbrace)?;
+
+        let body = self.parse_block_statement()?;
+
+        Ok(Expression::function(token, parameters, body))
+    }
+
+    fn parse_function_parameters(&mut self) -> Result<Vec<Expression<'a>>, ParseError<'a>> {
+        let mut identifiers = vec![];
+
+        if self.peek_token_is(&TokenType::Rparen) {
+            self.next_token();
+            return Ok(identifiers);
+        }
+
+        self.next_token();
+        identifiers.push(Expression::ident(self.current_token));
+
+        while self.peek_token_is(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+
+            let ident = Expression::ident(self.current_token);
+            identifiers.push(ident);
+        }
+
+        self.expect_peek(TokenType::Rparen)?;
+
+        Ok(identifiers)
+    }
+
     fn parse_identifier(&mut self) -> Expression<'a> {
         Expression::ident(self.current_token)
     }
@@ -203,7 +244,7 @@ impl<'a> Parser<'a> {
         let token = self.current_token;
 
         self.expect_peek(TokenType::Ident)?;
-        let name = Identifier::new(self.current_token);
+        let name = Expression::ident(self.current_token);
 
         self.expect_peek(TokenType::Assign)?;
         self.next_token();
@@ -226,7 +267,7 @@ impl<'a> Parser<'a> {
         Ok(Statement::r#return(token, value))
     }
 
-    fn parse_block_statement(&mut self) -> Result<Block<'a>, ParseError<'a>> {
+    fn parse_block_statement(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
         let token = self.current_token;
         let mut statements = vec![];
         self.next_token();
@@ -236,7 +277,7 @@ impl<'a> Parser<'a> {
             self.next_token();
         }
 
-        Ok(Block::new(token, statements))
+        Ok(Expression::block(token, statements))
     }
 
     fn curr_token_is(&self, token_type: TokenType) -> bool {
@@ -298,7 +339,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Identifier, Node, Statement};
+    use crate::ast::{Node, Statement};
 
     #[test]
     fn test_let_statements() {
@@ -341,7 +382,7 @@ return 993322;"#;
     fn test_program() {
         let program = Program::new(vec![Statement::r#let(
             Token::from_keyword("let"),
-            Identifier::new(Token::from_keyword("myVar")),
+            Expression::ident(Token::from_keyword("myVar")),
             Expression::ident(Token::from_keyword("anotherVar")),
         )]);
 
@@ -355,7 +396,7 @@ return 993322;"#;
 
         assert_eq!(program.statements.len(), 1);
 
-        let expression = test_expression(&program.statements[0]);
+        let expression = expect_expression(&program.statements[0]);
         test_literal_expression(expression, ExpectedLiteral::String("foobar"));
     }
 
@@ -365,7 +406,7 @@ return 993322;"#;
         let program = build_program(input);
         assert_eq!(program.statements.len(), 1);
 
-        let expression = test_expression(&program.statements[0]);
+        let expression = expect_expression(&program.statements[0]);
         test_literal_expression(expression, ExpectedLiteral::Int(5));
     }
 
@@ -383,7 +424,7 @@ return 993322;"#;
             let program = build_program(input);
             assert_eq!(program.statements.len(), 1);
 
-            let expression = test_expression(&program.statements[0]);
+            let expression = expect_expression(&program.statements[0]);
 
             let Expression::Prefix {
                 operator: op,
@@ -416,7 +457,7 @@ return 993322;"#;
             let program = build_program(input);
             assert_eq!(program.statements.len(), 1);
 
-            let expression = test_expression(&program.statements[0]);
+            let expression = expect_expression(&program.statements[0]);
             test_infix_expression(expression, left, operator, right);
         }
     }
@@ -462,7 +503,7 @@ return 993322;"#;
         let program = build_program(input);
         assert_eq!(program.statements.len(), 1);
 
-        let expression = test_expression(&program.statements[0]);
+        let expression = expect_expression(&program.statements[0]);
         let Expression::If {
             condition,
             consequence,
@@ -476,9 +517,10 @@ return 993322;"#;
         use ExpectedLiteral::*;
         test_infix_expression(condition, String("x"), "<", String("y"));
 
-        let statements = consequence.statements();
+        let statements = expect_block_expression(consequence);
         assert_eq!(statements.len(), 1);
-        let expression = test_expression(&statements[0]);
+
+        let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, String("x"));
 
         assert!(alternative.is_none());
@@ -490,7 +532,7 @@ return 993322;"#;
         let program = build_program(input);
         assert_eq!(program.statements.len(), 1);
 
-        let expression = test_expression(&program.statements[0]);
+        let expression = expect_expression(&program.statements[0]);
         let Expression::If {
             condition,
             consequence,
@@ -504,28 +546,83 @@ return 993322;"#;
         use ExpectedLiteral::*;
         test_infix_expression(condition, String("x"), "<", String("y"));
 
-        let consequence_statements = consequence.statements();
+        // let consequence_statements = consequence.statements();
+        let consequence = consequence.as_ref();
+        let consequence_statements = expect_block_expression(consequence);
         assert_eq!(consequence_statements.len(), 1);
-        let consequence_expression = test_expression(&consequence_statements[0]);
+        let consequence_expression = expect_expression(&consequence_statements[0]);
         test_literal_expression(consequence_expression, String("x"));
 
-        let Some(alternative) = alternative else {
+        let Some(alternative) = alternative.as_ref() else {
             panic!("expected alternative block, got None");
         };
 
-        let alternative = alternative.statements();
-        assert_eq!(alternative.len(), 1);
-        let alternative_expression = test_expression(&alternative[0]);
+        let alternative_statements = expect_block_expression(alternative);
+        assert_eq!(alternative_statements.len(), 1);
+        let alternative_expression = expect_expression(&alternative_statements[0]);
         test_literal_expression(alternative_expression, String("y"));
     }
 
-    // test expression helpers
-    fn test_expression<'a>(stmt: &'a Statement<'a>) -> &'a Expression<'a> {
-        let Statement::Expression { expression, .. } = stmt else {
-            panic!("expected expression statement, got {:#?}", stmt);
+    #[test]
+    fn test_function_literal() {
+        let input = "fn(x, y) {x + y; }";
+        let program = build_program(input);
+        assert_eq!(program.statements.len(), 1);
+
+        let statement = expect_expression(&program.statements[0]);
+
+        let Expression::Function {
+            parameters, body, ..
+        } = statement
+        else {
+            panic!("expected function expression, got {:#}", statement);
         };
 
-        &expression
+        use ExpectedLiteral::*;
+
+        assert_eq!(parameters.len(), 2);
+        test_literal_expression(&parameters[0], String("x"));
+        test_literal_expression(&parameters[1], String("y"));
+
+        let body_statements = expect_block_expression(body);
+        assert_eq!(body_statements.len(), 1);
+        let body_expression = expect_expression(&body_statements[0]);
+        test_infix_expression(body_expression, String("x"), "+", String("y"));
+    }
+
+    #[test]
+    fn test_function_parameters() {
+        let tests = vec![
+            ("fn() {};", vec![]),
+            ("fn(x) {};", vec!["x"]),
+            ("fn(x, y, z) {};", vec!["x", "y", "z"]),
+        ];
+
+        for (input, expected) in tests {
+            let program = build_program(input);
+            assert_eq!(program.statements.len(), 1);
+
+            let statement = expect_expression(&program.statements[0]);
+
+            let Expression::Function { parameters, .. } = statement else {
+                panic!("expected function expression, got {:#}", statement);
+            };
+
+            assert_eq!(parameters.len(), expected.len());
+
+            for i in 0..expected.len() {
+                test_literal_expression(&parameters[i], ExpectedLiteral::String(expected[i]));
+            }
+        }
+    }
+
+    // test expression helpers
+    fn expect_expression<'a>(statement: &'a Statement<'a>) -> &'a Expression<'a> {
+        let Statement::Expression { expression, .. } = statement else {
+            panic!("expected expression statement, got {:#?}", statement);
+        };
+
+        expression
     }
 
     enum ExpectedLiteral {
@@ -580,6 +677,7 @@ return 993322;"#;
             if value { "true" } else { "false" }
         )
     }
+
     fn test_infix_expression(
         expression: &Expression,
         left: ExpectedLiteral,
@@ -601,33 +699,41 @@ return 993322;"#;
         test_literal_expression(infix_right, right);
     }
 
+    fn expect_block_expression<'a>(expression: &'a Expression<'a>) -> &'a [Statement<'a>] {
+        let Expression::Block { statements, .. } = expression else {
+            panic!("expected block expression, got {:#?}", expression);
+        };
+
+        statements
+    }
+
     // test statement helpers
-    fn test_return_statement(stmt: &Statement, value: &str) {
+    fn test_return_statement(statement: &Statement, value: &str) {
         let Statement::Return {
             value: return_value,
             ..
-        } = stmt
+        } = statement
         else {
-            panic!("expected return statement, got {stmt:?}");
+            panic!("expected return statement, got {statement:?}");
         };
 
-        assert_eq!(stmt.token_literal(), "return");
+        assert_eq!(statement.token_literal(), "return");
         assert_eq!(return_value.token_literal(), value);
     }
 
-    fn test_let_statement(stmt: &Statement, name: &str, value: &str) {
+    fn test_let_statement(statement: &Statement, name: &str, value: &str) {
         let Statement::Let {
-            name: stmt_name,
-            value: stmt_value,
+            name: statement_name,
+            value: statement_value,
             ..
-        } = stmt
+        } = statement
         else {
-            panic!("expected let statement, got {stmt:?}");
+            panic!("expected let statement, got {statement:?}");
         };
 
-        assert_eq!(stmt.token_literal(), "let");
-        assert_eq!(stmt_name.token_literal(), name);
-        assert_eq!(stmt_value.token_literal(), value);
+        assert_eq!(statement.token_literal(), "let");
+        assert_eq!(statement_name.token_literal(), name);
+        assert_eq!(statement_value.token_literal(), value);
     }
 
     // test program helpers

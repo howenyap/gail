@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Identifier, Node, StatementNode};
+use crate::ast::{Expression, Node, StatementNode};
 use crate::token::Token;
 use std::fmt::{self, Display};
 
@@ -6,7 +6,8 @@ use std::fmt::{self, Display};
 pub enum Statement<'a> {
     Let {
         token: Token<'a>,
-        name: Identifier<'a>,
+        // invariant: expression must be Identifier
+        name: Expression<'a>,
         value: Expression<'a>,
     },
     Return {
@@ -20,7 +21,7 @@ pub enum Statement<'a> {
 }
 
 impl<'a> Statement<'a> {
-    pub fn r#let(token: Token<'a>, name: Identifier<'a>, value: Expression<'a>) -> Self {
+    pub fn r#let(token: Token<'a>, name: Expression<'a>, value: Expression<'a>) -> Self {
         Self::Let { token, name, value }
     }
 
