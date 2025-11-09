@@ -306,7 +306,9 @@ impl<'a> Parser<'a> {
 
         let value = self.parse_expression(Precedence::Lowest)?;
 
-        self.advance_until(TokenType::Semicolon);
+        if self.peek_token_is(TokenType::Semicolon) {
+            self.next_token();
+        }
 
         Ok(Statement::r#let(token, name, value))
     }
@@ -317,7 +319,9 @@ impl<'a> Parser<'a> {
 
         let value = self.parse_expression(Precedence::Lowest)?;
 
-        self.advance_until(TokenType::Semicolon);
+        if self.peek_token_is(TokenType::Semicolon) {
+            self.next_token();
+        }
 
         Ok(Statement::r#return(token, value))
     }
@@ -371,12 +375,6 @@ impl<'a> Parser<'a> {
         self.peek_token.precedence()
     }
 
-    fn advance_until(&mut self, token_type: TokenType) {
-        while !self.curr_token_is(token_type) && !self.peek_token.is_eof() {
-            self.next_token();
-        }
-    }
-
     fn is_infix_operator(&self, token_type: &TokenType) -> bool {
         use TokenType::*;
 
@@ -386,7 +384,7 @@ impl<'a> Parser<'a> {
         )
     }
 
-    fn errors(&self) -> &[ParseError<'a>] {
+    pub fn errors(&self) -> &[ParseError<'a>] {
         &self.errors
     }
 }
@@ -398,35 +396,49 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = r#"let x = 5;
-let y = 10;
-let foobar = 838383;"#;
+        use ExpectedLiteral::*;
 
-        let program = build_program(input);
-        let statements = program.statements();
-        assert_eq!(statements.len(), 3);
+        let tests = vec![
+            ("let x = 5;", "x", Int(5)),
+            ("let y = true;", "y", Bool(true)),
+            ("let foobar = y", "foobar", String("y")),
+        ];
 
-        let tests = vec![("x", "5"), ("y", "10"), ("foobar", "838383")];
+        for (input, expected_identifier, expected_value) in tests {
+            let program = build_program(input);
+            let statements = program.statements();
+            assert_eq!(statements.len(), 1);
 
-        for ((expected_name, expected_value), statement) in tests.iter().zip(statements.iter()) {
-            test_let_statement(statement, expected_name, expected_value);
+            let Statement::Let { token, name, value } = &statements[0] else {
+                panic!("expected let statement, got {:#?}", statements[0]);
+            };
+
+            assert_eq!(token.literal(), "let");
+            assert_eq!(name.token_literal(), expected_identifier);
+            test_literal_expression(value, expected_value);
         }
     }
 
     #[test]
     fn test_return_statements() {
-        let input = r#"return 5;
-return 10;
-return 993322;"#;
+        use ExpectedLiteral::*;
+        let tests = vec![
+            ("return 5", Int(5)),
+            ("return false", Bool(false)),
+            ("return x", String("x")),
+        ];
 
-        let program = build_program(input);
-        let statements = program.statements();
-        assert_eq!(statements.len(), 3);
+        for (input, expected_value) in tests {
+            let program = build_program(input);
+            let statements = program.statements();
+            assert_eq!(statements.len(), 1);
 
-        let tests = vec!["5", "10", "993322"];
+            let Statement::Return { token, value } = &statements[0] else {
+                panic!("expected return statement, got {:#?}", statements[0]);
+            };
 
-        for (expected_value, statement) in tests.iter().zip(statements.iter()) {
-            test_return_statement(statement, expected_value);
+            assert_eq!(token.literal(), "return");
+            test_literal_expression(value, expected_value);
         }
     }
 
@@ -805,35 +817,6 @@ return 993322;"#;
         };
 
         statements
-    }
-
-    // test statement helpers
-    fn test_return_statement(statement: &Statement, value: &str) {
-        let Statement::Return {
-            value: return_value,
-            ..
-        } = statement
-        else {
-            panic!("expected return statement, got {statement:?}");
-        };
-
-        assert_eq!(statement.token_literal(), "return");
-        assert_eq!(return_value.token_literal(), value);
-    }
-
-    fn test_let_statement(statement: &Statement, name: &str, value: &str) {
-        let Statement::Let {
-            name: statement_name,
-            value: statement_value,
-            ..
-        } = statement
-        else {
-            panic!("expected let statement, got {statement:?}");
-        };
-
-        assert_eq!(statement.token_literal(), "let");
-        assert_eq!(statement_name.token_literal(), name);
-        assert_eq!(statement_value.token_literal(), value);
     }
 
     // test program helpers

@@ -1,4 +1,5 @@
 use crate::lexer::Lexer;
+use crate::parser::Parser;
 use std::io;
 use std::io::Write;
 
@@ -20,8 +21,15 @@ impl Repl {
             }
 
             let lexer = Lexer::new(&line);
-            for token in lexer {
-                writeln!(output, "{token:?}")?;
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+
+            if parser.errors().is_empty() {
+                writeln!(output, "{program}")?;
+            } else {
+                for error in parser.errors() {
+                    writeln!(output, "Parser error: {error}")?;
+                }
             }
 
             line.clear();
