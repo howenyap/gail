@@ -48,6 +48,12 @@ pub enum Expression<'a> {
         token: Token<'a>,
         statements: Vec<Statement<'a>>,
     },
+    Call {
+        token: Token<'a>,
+        // invariant: expression must be Function
+        function: Box<Expression<'a>>,
+        arguments: Vec<Expression<'a>>,
+    },
 }
 
 impl<'a> Expression<'a> {
@@ -113,6 +119,18 @@ impl<'a> Expression<'a> {
         }
     }
 
+    pub fn call(
+        token: Token<'a>,
+        function: Expression<'a>,
+        arguments: Vec<Expression<'a>>,
+    ) -> Self {
+        Self::Call {
+            token,
+            function: Box::new(function),
+            arguments,
+        }
+    }
+
     pub fn token(&self) -> &Token<'a> {
         match self {
             Self::Ident { token, .. } => token,
@@ -123,6 +141,7 @@ impl<'a> Expression<'a> {
             Self::If { token, .. } => token,
             Self::Function { token, .. } => token,
             Self::Block { token, .. } => token,
+            Self::Call { token, .. } => token,
         }
     }
 
@@ -144,19 +163,19 @@ impl<'a> ExpressionNode for Expression<'a> {
 impl<'a> Display for Expression<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expression::Ident { value, .. } => write!(f, "{value}"),
-            Expression::Int { token, .. } => write!(f, "{}", token.literal()),
-            Expression::Bool { value, .. } => write!(f, "{value}"),
-            Expression::Prefix {
+            Self::Ident { value, .. } => write!(f, "{value}"),
+            Self::Int { token, .. } => write!(f, "{}", token.literal()),
+            Self::Bool { value, .. } => write!(f, "{value}"),
+            Self::Prefix {
                 operator, right, ..
             } => write!(f, "({operator}{right})"),
-            Expression::Infix {
+            Self::Infix {
                 left,
                 operator,
                 right,
                 ..
             } => write!(f, "({left} {operator} {right})"),
-            Expression::If {
+            Self::If {
                 condition,
                 consequence,
                 alternative,
@@ -168,7 +187,7 @@ impl<'a> Display for Expression<'a> {
                     write!(f, "if {condition} {consequence}")
                 }
             }
-            Expression::Function {
+            Self::Function {
                 parameters, body, ..
             } => {
                 let params: String = parameters
@@ -179,9 +198,22 @@ impl<'a> Display for Expression<'a> {
 
                 write!(f, "fn({params}) {body} ")
             }
-            Expression::Block { statements, .. } => {
+            Self::Block { statements, .. } => {
                 let s: String = statements.iter().map(|s| s.to_string()).collect();
-                write!(f, "{{{s}}}")
+                write!(f, "{s}")
+            }
+            Self::Call {
+                function,
+                arguments,
+                ..
+            } => {
+                let args: String = arguments
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                write!(f, "{function}({args})")
             }
         }
     }

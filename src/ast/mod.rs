@@ -38,12 +38,16 @@ pub trait ExpressionNode: Node {
 use std::fmt;
 
 pub struct Program<'a> {
-    pub statements: Vec<Statement<'a>>,
+    statements: Vec<Statement<'a>>,
 }
 
 impl<'a> Program<'a> {
     pub fn new(statements: Vec<Statement<'a>>) -> Self {
         Self { statements }
+    }
+
+    pub fn statements(&self) -> &[Statement<'a>] {
+        &self.statements
     }
 }
 

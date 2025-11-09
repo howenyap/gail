@@ -109,6 +109,7 @@ impl Token<'_> {
             TokenType::LessThan | TokenType::GreaterThan => Precedence::LessGreater,
             TokenType::Plus | TokenType::Minus => Precedence::Sum,
             TokenType::Asterisk | TokenType::Slash => Precedence::Product,
+            TokenType::Lparen => Precedence::Call,
             _ => Precedence::Lowest,
         }
     }

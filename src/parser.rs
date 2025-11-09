@@ -13,6 +13,9 @@ pub enum ParseError<'a> {
     UnknownPrefixOperator {
         token: Token<'a>,
     },
+    UnknownInfixOperator {
+        token: Token<'a>,
+    },
 }
 
 impl<'a> Display for ParseError<'a> {
@@ -27,6 +30,9 @@ impl<'a> Display for ParseError<'a> {
             ParseError::InvalidInteger => write!(f, "invalid integer"),
             ParseError::UnknownPrefixOperator { token } => {
                 write!(f, "unknown prefix operator: {token}")
+            }
+            ParseError::UnknownInfixOperator { token } => {
+                write!(f, "unknown infix operator: {token}")
             }
         }
     }
@@ -85,7 +91,7 @@ impl<'a> Parser<'a> {
         let token = self.current_token;
         let expression = self.parse_expression(Precedence::Lowest)?;
 
-        if self.peek_token_is(&TokenType::Semicolon) {
+        if self.peek_token_is(TokenType::Semicolon) {
             self.next_token();
         }
 
@@ -98,13 +104,13 @@ impl<'a> Parser<'a> {
     ) -> Result<Expression<'a>, ParseError<'a>> {
         let mut left = self.parse_prefix()?;
 
-        while !self.peek_token_is(&TokenType::Semicolon) && precedence < self.peek_precedence() {
+        while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence() {
             if !self.is_infix_operator(self.peek_token_type()) {
                 return Ok(left);
             }
 
             self.next_token();
-            left = self.parse_infix_expression(left)?;
+            left = self.parse_infix(left)?;
         }
 
         Ok(left)
@@ -134,6 +140,23 @@ impl<'a> Parser<'a> {
         let right = self.parse_expression(Precedence::Prefix)?;
 
         Ok(Expression::prefix(token, right))
+    }
+
+    fn parse_infix(&mut self, left: Expression<'a>) -> Result<Expression<'a>, ParseError<'a>> {
+        match self.curr_token_type() {
+            TokenType::Plus
+            | TokenType::Minus
+            | TokenType::Asterisk
+            | TokenType::Slash
+            | TokenType::Equal
+            | TokenType::NotEqual
+            | TokenType::GreaterThan
+            | TokenType::LessThan => self.parse_infix_expression(left),
+            TokenType::Lparen => self.parse_call_expression(left),
+            _ => Err(ParseError::UnknownInfixOperator {
+                token: self.current_token,
+            }),
+        }
     }
 
     fn parse_infix_expression(
@@ -170,7 +193,7 @@ impl<'a> Parser<'a> {
         self.expect_peek(TokenType::Lbrace)?;
         let consequence = self.parse_block_statement()?;
 
-        let alternative = if self.peek_token_is(&TokenType::Else) {
+        let alternative = if self.peek_token_is(TokenType::Else) {
             self.next_token();
             self.expect_peek(TokenType::Lbrace)?;
             Some(self.parse_block_statement()?)
@@ -198,7 +221,7 @@ impl<'a> Parser<'a> {
     fn parse_function_parameters(&mut self) -> Result<Vec<Expression<'a>>, ParseError<'a>> {
         let mut identifiers = vec![];
 
-        if self.peek_token_is(&TokenType::Rparen) {
+        if self.peek_token_is(TokenType::Rparen) {
             self.next_token();
             return Ok(identifiers);
         }
@@ -206,7 +229,7 @@ impl<'a> Parser<'a> {
         self.next_token();
         identifiers.push(Expression::ident(self.current_token));
 
-        while self.peek_token_is(&TokenType::Comma) {
+        while self.peek_token_is(TokenType::Comma) {
             self.next_token();
             self.next_token();
 
@@ -217,6 +240,38 @@ impl<'a> Parser<'a> {
         self.expect_peek(TokenType::Rparen)?;
 
         Ok(identifiers)
+    }
+
+    fn parse_call_expression(
+        &mut self,
+        function: Expression<'a>,
+    ) -> Result<Expression<'a>, ParseError<'a>> {
+        let token = self.current_token;
+        let arguments = self.parse_call_arguments()?;
+
+        Ok(Expression::call(token, function, arguments))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression<'a>>, ParseError<'a>> {
+        let mut args = vec![];
+
+        if self.peek_token_is(TokenType::Rparen) {
+            self.next_token();
+            return Ok(args);
+        }
+
+        self.next_token();
+        args.push(self.parse_expression(Precedence::Lowest)?);
+
+        while self.peek_token_is(TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+            args.push(self.parse_expression(Precedence::Lowest)?);
+        }
+
+        self.expect_peek(TokenType::Rparen)?;
+
+        Ok(args)
     }
 
     fn parse_identifier(&mut self) -> Expression<'a> {
@@ -284,12 +339,12 @@ impl<'a> Parser<'a> {
         self.curr_token_type() == &token_type
     }
 
-    fn peek_token_is(&self, token_type: &TokenType) -> bool {
-        self.peek_token_type() == token_type
+    fn peek_token_is(&self, token_type: TokenType) -> bool {
+        self.peek_token_type() == &token_type
     }
 
     fn expect_peek(&mut self, token_type: TokenType) -> Result<(), ParseError<'a>> {
-        if self.peek_token_is(&token_type) {
+        if self.peek_token_is(token_type) {
             self.next_token();
             Ok(())
         } else {
@@ -327,7 +382,7 @@ impl<'a> Parser<'a> {
 
         matches!(
             token_type,
-            Plus | Minus | Asterisk | Slash | Equal | NotEqual | LessThan | GreaterThan
+            Plus | Minus | Asterisk | Slash | Equal | NotEqual | LessThan | GreaterThan | Lparen
         )
     }
 
@@ -348,13 +403,12 @@ let y = 10;
 let foobar = 838383;"#;
 
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 3);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 3);
 
         let tests = vec![("x", "5"), ("y", "10"), ("foobar", "838383")];
 
-        for ((expected_name, expected_value), statement) in
-            tests.iter().zip(program.statements.iter())
-        {
+        for ((expected_name, expected_value), statement) in tests.iter().zip(statements.iter()) {
             test_let_statement(statement, expected_name, expected_value);
         }
     }
@@ -366,11 +420,12 @@ return 10;
 return 993322;"#;
 
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 3);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 3);
 
         let tests = vec!["5", "10", "993322"];
 
-        for (expected_value, statement) in tests.iter().zip(program.statements.iter()) {
+        for (expected_value, statement) in tests.iter().zip(statements.iter()) {
             test_return_statement(statement, expected_value);
         }
     }
@@ -380,11 +435,12 @@ return 993322;"#;
 
     #[test]
     fn test_program() {
-        let program = Program::new(vec![Statement::r#let(
+        let statement = Statement::r#let(
             Token::from_keyword("let"),
             Expression::ident(Token::from_keyword("myVar")),
             Expression::ident(Token::from_keyword("anotherVar")),
-        )]);
+        );
+        let program = Program::new(vec![statement]);
 
         assert_eq!(program.to_string(), "let myVar = anotherVar;");
     }
@@ -394,9 +450,10 @@ return 993322;"#;
         let input = "foobar;";
         let program = build_program(input);
 
-        assert_eq!(program.statements.len(), 1);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
+        let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, ExpectedLiteral::String("foobar"));
     }
 
@@ -404,9 +461,10 @@ return 993322;"#;
     fn test_integer_literal_expression() {
         let input = "5;";
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 1);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
+        let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, ExpectedLiteral::Int(5));
     }
 
@@ -422,9 +480,10 @@ return 993322;"#;
 
         for (input, operator, expected) in tests {
             let program = build_program(input);
-            assert_eq!(program.statements.len(), 1);
+            let statements = program.statements();
+            assert_eq!(statements.len(), 1);
 
-            let expression = expect_expression(&program.statements[0]);
+            let expression = expect_expression(&statements[0]);
 
             let Expression::Prefix {
                 operator: op,
@@ -455,9 +514,10 @@ return 993322;"#;
 
         for (input, left, operator, right) in tests {
             let program = build_program(input);
-            assert_eq!(program.statements.len(), 1);
+            let statements = program.statements();
+            assert_eq!(statements.len(), 1);
 
-            let expression = expect_expression(&program.statements[0]);
+            let expression = expect_expression(&statements[0]);
             test_infix_expression(expression, left, operator, right);
         }
     }
@@ -489,6 +549,15 @@ return 993322;"#;
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -501,9 +570,10 @@ return 993322;"#;
     fn test_if_expression() {
         let input = "if (x < y) { x }";
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 1);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
+        let expression = expect_expression(&statements[0]);
         let Expression::If {
             condition,
             consequence,
@@ -530,9 +600,10 @@ return 993322;"#;
     fn test_if_else_expression() {
         let input = "if (x < y) { x } else { y }";
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 1);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
 
-        let expression = expect_expression(&program.statements[0]);
+        let expression = expect_expression(&statements[0]);
         let Expression::If {
             condition,
             consequence,
@@ -567,9 +638,10 @@ return 993322;"#;
     fn test_function_literal() {
         let input = "fn(x, y) {x + y; }";
         let program = build_program(input);
-        assert_eq!(program.statements.len(), 1);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
 
-        let statement = expect_expression(&program.statements[0]);
+        let statement = expect_expression(&statements[0]);
 
         let Expression::Function {
             parameters, body, ..
@@ -600,9 +672,10 @@ return 993322;"#;
 
         for (input, expected) in tests {
             let program = build_program(input);
-            assert_eq!(program.statements.len(), 1);
+            let statements = program.statements();
+            assert_eq!(statements.len(), 1);
 
-            let statement = expect_expression(&program.statements[0]);
+            let statement = expect_expression(&program.statements()[0]);
 
             let Expression::Function { parameters, .. } = statement else {
                 panic!("expected function expression, got {:#}", statement);
@@ -614,6 +687,33 @@ return 993322;"#;
                 test_literal_expression(&parameters[i], ExpectedLiteral::String(expected[i]));
             }
         }
+    }
+
+    #[test]
+    fn text_call_expression() {
+        let input = "add(1, 2 * 3, 4 + 5)";
+        let program = build_program(input);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
+
+        let expression = expect_expression(&statements[0]);
+
+        let Expression::Call {
+            function,
+            arguments,
+            ..
+        } = expression
+        else {
+            panic!("expected call expression, got {:#?}", expression)
+        };
+
+        use ExpectedLiteral::*;
+        test_literal_expression(function, String("add"));
+        assert_eq!(arguments.len(), 3);
+
+        test_literal_expression(&arguments[0], ExpectedLiteral::Int(1));
+        test_infix_expression(&arguments[1], Int(2), "*", Int(3));
+        test_infix_expression(&arguments[2], Int(4), "+", Int(5));
     }
 
     // test expression helpers
