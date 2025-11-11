@@ -7,6 +7,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Null,
+    ReturnValue(Box<Object>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -14,6 +15,7 @@ pub enum ObjectType {
     Integer,
     Boolean,
     Null,
+    ReturnValue,
 }
 
 pub trait ObjectTrait {
@@ -24,6 +26,10 @@ pub trait ObjectTrait {
 impl Object {
     pub fn is_null(&self) -> bool {
         matches!(self, Object::Null)
+    }
+
+    pub fn is_return_value(&self) -> bool {
+        matches!(self, Object::ReturnValue(_))
     }
 
     pub fn is_truthy(&self) -> bool {
@@ -40,6 +46,10 @@ impl Object {
 
     pub fn r#false() -> Self {
         Object::Boolean(false)
+    }
+
+    pub fn return_value(value: Object) -> Self {
+        Object::ReturnValue(Box::new(value))
     }
 
     pub fn add(self, other: Self) -> Result<Self, EvalError> {
@@ -195,6 +205,7 @@ impl ObjectTrait for Object {
             Object::Integer(_) => ObjectType::Integer,
             Object::Boolean(_) => ObjectType::Boolean,
             Object::Null => ObjectType::Null,
+            Object::ReturnValue(_) => ObjectType::ReturnValue,
         }
     }
 
@@ -203,6 +214,7 @@ impl ObjectTrait for Object {
             Object::Integer(value) => value.to_string(),
             Object::Boolean(value) => value.to_string(),
             Object::Null => "null".to_string(),
+            Object::ReturnValue(value) => value.inspect(),
         }
     }
 }

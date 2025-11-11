@@ -45,6 +45,7 @@ impl Evaluator {
     fn eval_statement(stmt: &Statement) -> Result<Object> {
         let evaluated = match stmt {
             Statement::Expression { expression, .. } => Self::eval_expression(expression)?,
+            Statement::Return { value, .. } => Self::eval_return_statement(value)?,
             _ => Object::Null,
         };
 
@@ -56,6 +57,10 @@ impl Evaluator {
 
         for stmt in prog.statements().iter() {
             result = Self::eval_statement(stmt)?;
+
+            if let Object::ReturnValue(value) = result {
+                return Ok(*value);
+            }
         }
 
         Ok(result)
@@ -123,9 +128,19 @@ impl Evaluator {
 
         for stmt in statements.iter() {
             result = Self::eval_statement(stmt)?;
+
+            if result.is_return_value() {
+                return Ok(result);
+            }
         }
 
         Ok(result)
+    }
+
+    fn eval_return_statement(value: &Expression) -> Result<Object> {
+        let value = Self::eval_expression(value)?;
+
+        Ok(Object::return_value(value))
     }
 }
 
@@ -233,6 +248,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_return_statements() {
+        let tests = vec![
+            ("return 10;", Object::Integer(10)),
+            ("return 10; 9;", Object::Integer(10)),
+            ("return 2 * 5; 9;", Object::Integer(10)),
+            ("9; return 2 * 5; 9;", Object::Integer(10)),
+            (
+                r#"
+                    if (10 > 1) {
+                        if (10 > 1) {
+                            return 10;
+                        }
+
+                        return 1;
+                    }
+                "#,
+                Object::Integer(10),
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+
+            match expected {
+                Object::Integer(expected) => test_integer_object(evaluated, expected),
+                _ => unreachable!(),
+            }
+        }
+    }
+
     fn test_integer_object(object: Object, expected: i64) {
         let Object::Integer(value) = object else {
             panic!("object is not an integer, got {object:?}");
@@ -253,7 +299,14 @@ mod tests {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        assert!(parser.errors().is_empty());
+
+        if !parser.errors().is_empty() {
+            for error in parser.errors() {
+                println!("parser error: {error}");
+            }
+
+            panic!("parser errors: {:#?}", parser.errors());
+        }
 
         Evaluator::eval(&program.into()).expect("evaluation failed")
     }
