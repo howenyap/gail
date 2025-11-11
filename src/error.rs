@@ -48,6 +48,11 @@ pub enum EvalError {
         right: ObjectType,
         operator: String,
     },
+    UnsupportedPrefixOperator {
+        right: ObjectType,
+        operator: String,
+    },
+    DivisionByZero,
 }
 
 impl Display for EvalError {
@@ -66,6 +71,10 @@ impl Display for EvalError {
                     "unsupported infix operator: {left:?} {operator} {right:?}"
                 )
             }
+            EvalError::UnsupportedPrefixOperator { right, operator } => {
+                write!(f, "unsupported prefix operator: {operator} {right:?}")
+            }
+            EvalError::DivisionByZero => write!(f, "division by zero"),
         }
     }
 }

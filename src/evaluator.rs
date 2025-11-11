@@ -72,7 +72,12 @@ impl Evaluator {
         let evaluated = match operator {
             "!" => right.bang()?,
             "-" => right.negate()?,
-            _ => Object::Null,
+            _ => {
+                return Err(EvalError::UnsupportedPrefixOperator {
+                    right: right.object_type(),
+                    operator: operator.to_string(),
+                });
+            }
         };
 
         Ok(evaluated)
@@ -86,7 +91,7 @@ impl Evaluator {
         let left = Self::eval_expression(left)?;
         let right = Self::eval_expression(right)?;
 
-        let evaluted = match operator {
+        let evaluated = match operator {
             "+" => left.add(right)?,
             "-" => left.subtract(right)?,
             "*" => left.multiply(right)?,
@@ -104,7 +109,7 @@ impl Evaluator {
             }
         };
 
-        Ok(evaluted)
+        Ok(evaluated)
     }
 
     fn eval_conditional_expression(
@@ -302,10 +307,10 @@ mod tests {
 
         if !parser.errors().is_empty() {
             for error in parser.errors() {
-                println!("parser error: {error}");
+                eprintln!("parser error: {error}");
             }
 
-            panic!("parser errors: {:#?}", parser.errors());
+            panic!("parser has errors");
         }
 
         Evaluator::eval(&program.into()).expect("evaluation failed")

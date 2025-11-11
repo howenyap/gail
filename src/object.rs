@@ -55,10 +55,10 @@ impl Object {
     pub fn add(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left + right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: ObjectType::Integer,
-                    right: ObjectType::Integer,
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "+".to_string(),
                 });
             }
@@ -70,10 +70,10 @@ impl Object {
     pub fn subtract(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left - right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: ObjectType::Integer,
-                    right: ObjectType::Integer,
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "-".to_string(),
                 });
             }
@@ -85,10 +85,10 @@ impl Object {
     pub fn multiply(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left * right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: ObjectType::Integer,
-                    right: ObjectType::Integer,
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "*".to_string(),
                 });
             }
@@ -99,11 +99,17 @@ impl Object {
 
     pub fn divide(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
-            (Object::Integer(left), Object::Integer(right)) => Object::Integer(left / right),
-            _ => {
+            (Object::Integer(left), Object::Integer(right)) => {
+                if right == 0 {
+                    return Err(EvalError::DivisionByZero);
+                }
+
+                Object::Integer(left / right)
+            }
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: ObjectType::Integer,
-                    right: ObjectType::Integer,
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "/".to_string(),
                 });
             }
@@ -115,10 +121,10 @@ impl Object {
     pub fn less_than(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left < right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: ObjectType::Integer,
-                    right: ObjectType::Integer,
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "<".to_string(),
                 });
             }
@@ -128,12 +134,12 @@ impl Object {
     }
 
     pub fn greater_than(self, other: Self) -> Result<Self, EvalError> {
-        let evaluated = match (&self, &other) {
+        let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left > right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: self.object_type(),
-                    right: other.object_type(),
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: ">".to_string(),
                 });
             }
@@ -143,13 +149,13 @@ impl Object {
     }
 
     pub fn equal(self, other: Self) -> Result<Self, EvalError> {
-        let evaluated = match (&self, &other) {
+        let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left == right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left == right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: self.object_type(),
-                    right: other.object_type(),
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "==".to_string(),
                 });
             }
@@ -159,13 +165,13 @@ impl Object {
     }
 
     pub fn not_equal(self, other: Self) -> Result<Self, EvalError> {
-        let evaluated = match (&self, &other) {
+        let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left != right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left != right),
-            _ => {
+            (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
-                    left: self.object_type(),
-                    right: other.object_type(),
+                    left: left.object_type(),
+                    right: right.object_type(),
                     operator: "!=".to_string(),
                 });
             }
