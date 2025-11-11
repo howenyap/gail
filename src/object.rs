@@ -22,6 +22,18 @@ pub trait ObjectTrait {
 }
 
 impl Object {
+    pub fn is_null(&self) -> bool {
+        matches!(self, Object::Null)
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        if matches!(self, Object::Boolean(false) | Object::Null) {
+            false
+        } else {
+            true
+        }
+    }
+
     pub fn r#true() -> Self {
         Object::Boolean(true)
     }

@@ -1,7 +1,7 @@
 use crate::ast::Node;
 use crate::ast::{Expression, Program, Statement};
 use crate::error::EvalError;
-use crate::object::{Object, ObjectTrait, ObjectType};
+use crate::object::{Object, ObjectTrait};
 
 pub struct Evaluator;
 
@@ -29,6 +29,13 @@ impl Evaluator {
                 right,
                 ..
             } => Self::eval_infix_expression(left, operator, right)?,
+            Expression::If {
+                condition,
+                consequence,
+                alternative,
+                ..
+            } => Self::eval_conditional_expression(condition, consequence, alternative)?,
+            Expression::Block { statements, .. } => Self::eval_block_expression(statements)?,
             _ => Object::Null,
         };
 
@@ -93,6 +100,32 @@ impl Evaluator {
         };
 
         Ok(evaluted)
+    }
+
+    fn eval_conditional_expression(
+        condition: &Expression,
+        consequence: &Expression,
+        alternative: &Option<Expression>,
+    ) -> Result<Object> {
+        let condition = Self::eval_expression(condition)?;
+
+        if condition.is_truthy() {
+            Self::eval_expression(consequence)
+        } else if let Some(alternative) = alternative {
+            Self::eval_expression(alternative)
+        } else {
+            Ok(Object::Null)
+        }
+    }
+
+    fn eval_block_expression(statements: &Vec<Statement>) -> Result<Object> {
+        let mut result = Object::Null;
+
+        for stmt in statements.iter() {
+            result = Self::eval_statement(stmt)?;
+        }
+
+        Ok(result)
     }
 }
 
@@ -174,6 +207,29 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input);
             test_boolean_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_if_expressions() {
+        let tests = vec![
+            ("if (true) { 10 }", Object::Integer(10)),
+            ("if (false) { 10 }", Object::Null),
+            ("if (1) { 10 }", Object::Integer(10)),
+            ("if (1 < 2) { 10 }", Object::Integer(10)),
+            ("if (1 > 2) { 10 }", Object::Null),
+            ("if (1 > 2) { 10 } else { 20 }", Object::Integer(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Object::Integer(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+
+            match expected {
+                Object::Integer(expected) => test_integer_object(evaluated, expected),
+                Object::Null => assert!(evaluated.is_null()),
+                _ => unreachable!(),
+            }
         }
     }
 
