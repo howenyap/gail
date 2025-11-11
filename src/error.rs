@@ -1,3 +1,4 @@
+use crate::object::ObjectType;
 use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
 
@@ -31,6 +32,39 @@ impl<'a> Display for ParseError<'a> {
             }
             ParseError::UnknownInfixOperator { token } => {
                 write!(f, "unknown infix operator: {token}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EvalError {
+    UnexpectedType {
+        found: ObjectType,
+        expected: ObjectType,
+    },
+    UnsupportedInfixOperator {
+        left: ObjectType,
+        right: ObjectType,
+        operator: String,
+    },
+}
+
+impl Display for EvalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvalError::UnexpectedType { found, expected } => {
+                write!(f, "expected type {expected:?}, got {found:?} instead")
+            }
+            EvalError::UnsupportedInfixOperator {
+                left,
+                right,
+                operator,
+            } => {
+                write!(
+                    f,
+                    "unsupported infix operator: {left:?} {operator} {right:?}"
+                )
             }
         }
     }

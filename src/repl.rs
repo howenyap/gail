@@ -30,8 +30,10 @@ impl Repl {
                     writeln!(output, "Parser error: {error}")?;
                 }
             } else {
-                let evaluated = Evaluator::eval(&program.into());
-                writeln!(output, "{evaluated}")?;
+                match Evaluator::eval(&program.into()) {
+                    Ok(evaluated) => writeln!(output, "{evaluated}")?,
+                    Err(error) => writeln!(output, "Error: {error}")?,
+                }
             }
 
             line.clear();
