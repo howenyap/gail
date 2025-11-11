@@ -1,3 +1,4 @@
+use crate::evaluator::Evaluator;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use std::io;
@@ -24,12 +25,13 @@ impl Repl {
             let mut parser = Parser::new(lexer);
             let program = parser.parse_program();
 
-            if parser.errors().is_empty() {
-                writeln!(output, "{program}")?;
-            } else {
+            if !parser.errors().is_empty() {
                 for error in parser.errors() {
                     writeln!(output, "Parser error: {error}")?;
                 }
+            } else {
+                let evaluated = Evaluator::eval(&program.into());
+                writeln!(output, "{evaluated}")?;
             }
 
             line.clear();

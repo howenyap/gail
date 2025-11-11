@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Node, StatementNode};
+use crate::ast::Expression;
 use crate::token::Token;
 use std::fmt::{self, Display};
 
@@ -32,10 +32,8 @@ impl<'a> Statement<'a> {
     pub fn expression(token: Token<'a>, expression: Expression<'a>) -> Self {
         Self::Expression { token, expression }
     }
-}
 
-impl<'a> Node for Statement<'a> {
-    fn token_literal(&self) -> &str {
+    pub fn token_literal(&self) -> &str {
         match self {
             Statement::Let { token, .. } => token.literal(),
             Statement::Return { token, .. } => token.literal(),
@@ -52,8 +50,4 @@ impl<'a> Display for Statement<'a> {
             Statement::Expression { expression, .. } => write!(f, "{expression}"),
         }
     }
-}
-
-impl<'a> StatementNode for Statement<'a> {
-    fn statement_node(&self) {}
 }

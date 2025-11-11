@@ -21,22 +21,9 @@ impl Default for Precedence {
     }
 }
 
-use std::fmt::Display;
-
-pub trait Node: Display {
-    fn token_literal(&self) -> &str;
-}
-
-pub trait StatementNode: Node {
-    fn statement_node(&self) {}
-}
-
-pub trait ExpressionNode: Node {
-    fn expression_node(&self) {}
-}
-
 use std::fmt;
 
+#[derive(Debug, PartialEq)]
 pub struct Program<'a> {
     statements: Vec<Statement<'a>>,
 }
@@ -49,10 +36,8 @@ impl<'a> Program<'a> {
     pub fn statements(&self) -> &[Statement<'a>] {
         &self.statements
     }
-}
 
-impl<'a> Node for Program<'a> {
-    fn token_literal(&self) -> &str {
+    pub fn token_literal(&self) -> &str {
         self.statements
             .first()
             .map(|stmt| stmt.token_literal())
@@ -60,11 +45,45 @@ impl<'a> Node for Program<'a> {
     }
 }
 
+impl<'a> From<Program<'a>> for Node<'a> {
+    fn from(program: Program<'a>) -> Self {
+        Node::Program(program)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Node<'a> {
+    Program(Program<'a>),
+    Statement(Statement<'a>),
+    Expression(Expression<'a>),
+}
+
+impl<'a> Node<'a> {
+    pub fn token_literal(&self) -> &str {
+        match self {
+            Node::Program(p) => p.token_literal(),
+            Node::Statement(s) => s.token_literal(),
+            Node::Expression(e) => e.token_literal(),
+        }
+    }
+}
+
 impl<'a> fmt::Display for Program<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for stmt in &self.statements {
+        for stmt in self.statements.iter() {
             write!(f, "{stmt}")?;
         }
+
         Ok(())
+    }
+}
+
+impl<'a> fmt::Display for Node<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Node::Program(p) => write!(f, "{p}"),
+            Node::Statement(s) => write!(f, "{s}"),
+            Node::Expression(e) => write!(f, "{e}"),
+        }
     }
 }

@@ -1,42 +1,7 @@
-use crate::ast::{Expression, Precedence, Program, Statement};
+use crate::ast::{Expression, Node, Precedence, Program, Statement};
+use crate::error::ParseError;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use std::fmt::{self, Display};
-
-#[derive(Debug, PartialEq)]
-pub enum ParseError<'a> {
-    UnexpectedToken {
-        found: Token<'a>,
-        expected: TokenType,
-    },
-    InvalidInteger,
-    UnknownPrefixOperator {
-        token: Token<'a>,
-    },
-    UnknownInfixOperator {
-        token: Token<'a>,
-    },
-}
-
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParseError::UnexpectedToken { found, expected } => {
-                write!(
-                    f,
-                    "expected next token to be {expected:?}, got {found} instead"
-                )
-            }
-            ParseError::InvalidInteger => write!(f, "invalid integer"),
-            ParseError::UnknownPrefixOperator { token } => {
-                write!(f, "unknown prefix operator: {token}")
-            }
-            ParseError::UnknownInfixOperator { token } => {
-                write!(f, "unknown infix operator: {token}")
-            }
-        }
-    }
-}
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -47,14 +12,14 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(mut lexer: Lexer<'a>) -> Self {
-        let first = lexer.next_token();
-        let second = lexer.next_token();
+        let current_token = lexer.next_token();
+        let peek_token = lexer.next_token();
         let errors = vec![];
 
         Self {
             lexer,
-            current_token: first,
-            peek_token: second,
+            current_token,
+            peek_token,
             errors,
         }
     }
@@ -392,7 +357,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Node, Statement};
+    use crate::ast::Statement;
 
     #[test]
     fn test_let_statements() {
@@ -441,10 +406,6 @@ mod tests {
             test_literal_expression(value, expected_value);
         }
     }
-
-    #[test]
-    fn test_string() {}
-
     #[test]
     fn test_program() {
         let statement = Statement::r#let(
@@ -503,7 +464,7 @@ mod tests {
                 ..
             } = expression
             else {
-                panic!("expected prefix expression, got {:#?}", expression);
+                panic!("expected prefix expression, got {expression:#?}");
             };
 
             assert_eq!(*op, operator);
@@ -593,7 +554,7 @@ mod tests {
             ..
         } = expression
         else {
-            panic!("expected if expression, got {:#?}", expression)
+            panic!("expected if expression, got {expression:#?}")
         };
 
         use ExpectedLiteral::*;
@@ -623,7 +584,7 @@ mod tests {
             ..
         } = expression
         else {
-            panic!("expected if expression, got {:#?}", expression)
+            panic!("expected if expression, got {expression:#?}")
         };
 
         use ExpectedLiteral::*;
@@ -659,7 +620,7 @@ mod tests {
             parameters, body, ..
         } = statement
         else {
-            panic!("expected function expression, got {:#}", statement);
+            panic!("expected function expression, got {statement:#}");
         };
 
         use ExpectedLiteral::*;
@@ -690,7 +651,7 @@ mod tests {
             let statement = expect_expression(&program.statements()[0]);
 
             let Expression::Function { parameters, .. } = statement else {
-                panic!("expected function expression, got {:#}", statement);
+                panic!("expected function expression, got {statement:#}");
             };
 
             assert_eq!(parameters.len(), expected.len());
@@ -716,7 +677,7 @@ mod tests {
             ..
         } = expression
         else {
-            panic!("expected call expression, got {:#?}", expression)
+            panic!("expected call expression, got {expression:#?}")
         };
 
         use ExpectedLiteral::*;
@@ -731,7 +692,7 @@ mod tests {
     // test expression helpers
     fn expect_expression<'a>(statement: &'a Statement<'a>) -> &'a Expression<'a> {
         let Statement::Expression { expression, .. } = statement else {
-            panic!("expected expression statement, got {:#?}", statement);
+            panic!("expected expression statement, got {statement:#?}");
         };
 
         expression
@@ -756,7 +717,7 @@ mod tests {
             value: expr_value, ..
         } = expression
         else {
-            panic!("expected integer expression, got {:#?}", expression);
+            panic!("expected integer expression, got {expression:#?}");
         };
 
         assert_eq!(*expr_value, value);
@@ -768,7 +729,7 @@ mod tests {
             value: ident_value,
         } = expression
         else {
-            panic!("expected identifier expression, got {:#?}", expression);
+            panic!("expected identifier expression, got {expression:#?}");
         };
 
         assert_eq!(token.literal(), value);
@@ -780,7 +741,7 @@ mod tests {
             value: expr_value, ..
         } = expression
         else {
-            panic!("expected boolean expression, got {:#?}", expression);
+            panic!("expected boolean expression, got {expression:#?}");
         };
 
         assert_eq!(*expr_value, value);
@@ -803,7 +764,7 @@ mod tests {
             ..
         } = expression
         else {
-            panic!("expected infix expression, got {:#?}", expression);
+            panic!("expected infix expression, got {expression:#?}");
         };
 
         test_literal_expression(infix_left, left);
@@ -813,7 +774,7 @@ mod tests {
 
     fn expect_block_expression<'a>(expression: &'a Expression<'a>) -> &'a [Statement<'a>] {
         let Expression::Block { statements, .. } = expression else {
-            panic!("expected block expression, got {:#?}", expression);
+            panic!("expected block expression, got {expression:#?}");
         };
 
         statements
@@ -825,6 +786,7 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
         check_parser_errors(&parser);
+
         program
     }
 

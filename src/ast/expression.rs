@@ -1,4 +1,3 @@
-use crate::ast::{ExpressionNode, Node};
 use crate::token::Token;
 use std::fmt::{self, Display};
 
@@ -145,26 +144,16 @@ impl<'a> Expression<'a> {
         }
     }
 
-    pub fn is_ident(&self) -> bool {
-        matches!(self, Expression::Ident { .. })
-    }
-}
-
-impl<'a> Node for Expression<'a> {
-    fn token_literal(&self) -> &str {
+    pub fn token_literal(&self) -> &str {
         self.token().literal()
     }
-}
-
-impl<'a> ExpressionNode for Expression<'a> {
-    fn expression_node(&self) {}
 }
 
 impl<'a> Display for Expression<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Ident { value, .. } => write!(f, "{value}"),
-            Self::Int { token, .. } => write!(f, "{}", token.literal()),
+            Self::Int { value, .. } => write!(f, "{value}"),
             Self::Bool { value, .. } => write!(f, "{value}"),
             Self::Prefix {
                 operator, right, ..
@@ -180,13 +169,10 @@ impl<'a> Display for Expression<'a> {
                 consequence,
                 alternative,
                 ..
-            } => {
-                if let Some(alternative) = alternative.as_ref() {
-                    write!(f, "if {condition} {consequence} else {alternative}")
-                } else {
-                    write!(f, "if {condition} {consequence}")
-                }
-            }
+            } => match alternative.as_ref() {
+                Some(alternative) => write!(f, "if {condition} {consequence} else {alternative}"),
+                None => write!(f, "if {condition} {consequence}"),
+            },
             Self::Function {
                 parameters, body, ..
             } => {
