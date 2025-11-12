@@ -3,6 +3,12 @@ use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
 
 #[derive(Debug, PartialEq)]
+pub enum ProgramError {
+    Parse,
+    Eval(EvalError),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum ParseError<'a> {
     UnexpectedToken {
         found: Token<'a>,
@@ -72,7 +78,7 @@ impl Display for EvalError {
                 )
             }
             EvalError::UnsupportedPrefixOperator { right, operator } => {
-                write!(f, "unsupported prefix operator: {operator} {right:?}")
+                write!(f, "unsupported prefix operator: {operator}{right:?}")
             }
             EvalError::DivisionByZero => write!(f, "division by zero"),
         }

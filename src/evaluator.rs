@@ -7,13 +7,11 @@ pub struct Evaluator;
 
 impl Evaluator {
     pub fn eval(node: &Node) -> Result<Object> {
-        let evaluated = match node {
-            Node::Expression(expr) => Self::eval_expression(expr)?,
-            Node::Statement(stmt) => Self::eval_statement(stmt)?,
-            Node::Program(prog) => Self::eval_program(prog)?,
-        };
-
-        Ok(evaluated)
+        match node {
+            Node::Expression(expr) => Self::eval_expression(expr),
+            Node::Statement(stmt) => Self::eval_statement(stmt),
+            Node::Program(prog) => Self::eval_program(prog),
+        }
     }
 
     fn eval_expression(expr: &Expression) -> Result<Object> {
@@ -36,7 +34,7 @@ impl Evaluator {
                 ..
             } => Self::eval_conditional_expression(condition, consequence, alternative)?,
             Expression::Block { statements, .. } => Self::eval_block_expression(statements)?,
-            _ => Object::Null,
+            _ => todo!(),
         };
 
         Ok(evaluated)
@@ -46,7 +44,7 @@ impl Evaluator {
         let evaluated = match stmt {
             Statement::Expression { expression, .. } => Self::eval_expression(expression)?,
             Statement::Return { value, .. } => Self::eval_return_statement(value)?,
-            _ => Object::Null,
+            _ => todo!(),
         };
 
         Ok(evaluated)
@@ -69,18 +67,14 @@ impl Evaluator {
     fn eval_prefix_expression(operator: &str, right: &Expression) -> Result<Object> {
         let right = Self::eval_expression(right)?;
 
-        let evaluated = match operator {
-            "!" => right.bang()?,
-            "-" => right.negate()?,
-            _ => {
-                return Err(EvalError::UnsupportedPrefixOperator {
-                    right: right.object_type(),
-                    operator: operator.to_string(),
-                });
-            }
-        };
-
-        Ok(evaluated)
+        match operator {
+            "!" => right.bang(),
+            "-" => right.negate(),
+            _ => Err(EvalError::UnsupportedPrefixOperator {
+                right: right.object_type(),
+                operator: operator.to_string(),
+            }),
+        }
     }
 
     fn eval_infix_expression(
@@ -91,25 +85,21 @@ impl Evaluator {
         let left = Self::eval_expression(left)?;
         let right = Self::eval_expression(right)?;
 
-        let evaluated = match operator {
-            "+" => left.add(right)?,
-            "-" => left.subtract(right)?,
-            "*" => left.multiply(right)?,
-            "/" => left.divide(right)?,
-            "<" => left.less_than(right)?,
-            ">" => left.greater_than(right)?,
-            "==" => left.equal(right)?,
-            "!=" => left.not_equal(right)?,
-            other => {
-                return Err(EvalError::UnsupportedInfixOperator {
-                    left: left.object_type(),
-                    right: right.object_type(),
-                    operator: other.to_string(),
-                });
-            }
-        };
-
-        Ok(evaluated)
+        match operator {
+            "+" => left.add(right),
+            "-" => left.subtract(right),
+            "*" => left.multiply(right),
+            "/" => left.divide(right),
+            "<" => left.less_than(right),
+            ">" => left.greater_than(right),
+            "==" => left.equal(right),
+            "!=" => left.not_equal(right),
+            other => Err(EvalError::UnsupportedInfixOperator {
+                left: left.object_type(),
+                right: right.object_type(),
+                operator: other.to_string(),
+            }),
+        }
     }
 
     fn eval_conditional_expression(
@@ -154,6 +144,8 @@ type Result<T> = std::result::Result<T, EvalError>;
 #[cfg(test)]
 mod tests {
     use super::Evaluator;
+    use crate::ast::Program;
+    use crate::error::ProgramError;
     use crate::lexer::Lexer;
     use crate::object::Object;
     use crate::parser::Parser;
@@ -284,6 +276,30 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_error_handling() {
+        let tests = vec![
+            ("5 + true;", "unsupported infix operator: Integer + Boolean"),
+            (
+                "5 + true; 5;",
+                "unsupported infix operator: Integer + Boolean",
+            ),
+            ("-true", "expected type Integer, got Boolean instead"),
+            (
+                "true + false;",
+                "unsupported infix operator: Boolean + Boolean",
+            ),
+            (
+                "5; true + false; 5",
+                "unsupported infix operator: Boolean + Boolean",
+            ),
+        ];
+
+        for (input, expected) in tests {
+            test_error_object(input, expected);
+        }
+    }
+
     fn test_integer_object(object: Object, expected: i64) {
         let Object::Integer(value) = object else {
             panic!("object is not an integer, got {object:?}");
@@ -300,18 +316,17 @@ mod tests {
         assert_eq!(value, expected);
     }
 
-    fn test_eval(input: &str) -> Object {
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
+    fn test_error_object(input: &str, expected: &str) {
+        let program = Program::from_str(input).expect("program construction failed");
 
-        if !parser.errors().is_empty() {
-            for error in parser.errors() {
-                eprintln!("parser error: {error}");
-            }
-
-            panic!("parser has errors");
+        match Evaluator::eval(&program.into()) {
+            Ok(_) => panic!("expected error but got no error"),
+            Err(error) => assert_eq!(error.to_string(), expected),
         }
+    }
+
+    fn test_eval(input: &str) -> Object {
+        let program = Program::from_str(input).expect("program construction failed");
 
         Evaluator::eval(&program.into()).expect("evaluation failed")
     }

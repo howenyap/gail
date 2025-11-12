@@ -4,6 +4,10 @@ mod statement;
 pub use expression::Expression;
 pub use statement::Statement;
 
+use crate::error::ProgramError;
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Precedence {
     Lowest,
@@ -31,6 +35,19 @@ pub struct Program<'a> {
 impl<'a> Program<'a> {
     pub fn new(statements: Vec<Statement<'a>>) -> Self {
         Self { statements }
+    }
+
+    pub fn from_str(input: &'a str) -> Result<Self, ProgramError> {
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+
+        if parser.has_errors() {
+            parser.print_errors();
+            Err(ProgramError::Parse)
+        } else {
+            Ok(program)
+        }
     }
 
     pub fn statements(&self) -> &[Statement<'a>] {

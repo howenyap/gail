@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Node, Precedence, Program, Statement};
+use crate::ast::{Expression, Precedence, Program, Statement};
 use crate::error::ParseError;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -349,8 +349,14 @@ impl<'a> Parser<'a> {
         )
     }
 
-    pub fn errors(&self) -> &[ParseError<'a>] {
-        &self.errors
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    pub fn print_errors(&self) {
+        for error in &self.errors {
+            eprintln!("parser error: {error}");
+        }
     }
 }
 
@@ -590,7 +596,6 @@ mod tests {
         use ExpectedLiteral::*;
         test_infix_expression(condition, String("x"), "<", String("y"));
 
-        // let consequence_statements = consequence.statements();
         let consequence = consequence.as_ref();
         let consequence_statements = expect_block_expression(consequence);
         assert_eq!(consequence_statements.len(), 1);
@@ -791,11 +796,8 @@ mod tests {
     }
 
     fn check_parser_errors(parser: &Parser) {
-        if !parser.errors().is_empty() {
-            for error in parser.errors() {
-                eprintln!("parser error: {error}");
-            }
-
+        if parser.has_errors() {
+            parser.print_errors();
             panic!("parser has errors");
         }
     }

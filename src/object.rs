@@ -33,11 +33,7 @@ impl Object {
     }
 
     pub fn is_truthy(&self) -> bool {
-        if matches!(self, Object::Boolean(false) | Object::Null) {
-            false
-        } else {
-            true
-        }
+        !matches!(self, Object::Boolean(false) | Object::Null)
     }
 
     pub fn r#true() -> Self {

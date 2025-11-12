@@ -25,10 +25,8 @@ impl Repl {
             let mut parser = Parser::new(lexer);
             let program = parser.parse_program();
 
-            if !parser.errors().is_empty() {
-                for error in parser.errors() {
-                    writeln!(output, "Parser error: {error}")?;
-                }
+            if parser.has_errors() {
+                parser.print_errors();
             } else {
                 match Evaluator::eval(&program.into()) {
                     Ok(evaluated) => writeln!(output, "{evaluated}")?,
