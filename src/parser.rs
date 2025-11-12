@@ -30,7 +30,7 @@ impl<'a> Parser<'a> {
         self.peek_token = next_token;
     }
 
-    pub fn parse_program(&mut self) -> Program<'a> {
+    pub fn parse_program(&mut self) -> Program {
         let mut statements = vec![];
 
         while !self.current_token.is_eof() {
@@ -44,7 +44,7 @@ impl<'a> Parser<'a> {
         Program::new(statements)
     }
 
-    fn parse_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
+    fn parse_statement(&mut self) -> Result<Statement, ParseError<'a>> {
         match self.curr_token_type() {
             TokenType::Let => self.parse_let_statement(),
             TokenType::Return => self.parse_return_statement(),
@@ -52,21 +52,17 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_expression_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
-        let token = self.current_token;
+    fn parse_expression_statement(&mut self) -> Result<Statement, ParseError<'a>> {
         let expression = self.parse_expression(Precedence::Lowest)?;
 
         if self.peek_token_is(TokenType::Semicolon) {
             self.next_token();
         }
 
-        Ok(Statement::expression(token, expression))
+        Ok(Statement::expression(expression))
     }
 
-    fn parse_expression(
-        &mut self,
-        precedence: Precedence,
-    ) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParseError<'a>> {
         let mut left = self.parse_prefix()?;
 
         while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence() {
@@ -81,7 +77,7 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn parse_prefix(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_prefix(&mut self) -> Result<Expression, ParseError<'a>> {
         use TokenType::*;
 
         match self.curr_token_type() {
@@ -98,16 +94,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_prefix_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_prefix_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         let token = self.current_token;
 
         self.next_token();
         let right = self.parse_expression(Precedence::Prefix)?;
 
-        Ok(Expression::prefix(token, right))
+        Ok(Expression::prefix(&token, right))
     }
 
-    fn parse_infix(&mut self, left: Expression<'a>) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_infix(&mut self, left: Expression) -> Result<Expression, ParseError<'a>> {
         match self.curr_token_type() {
             TokenType::Plus
             | TokenType::Minus
@@ -124,20 +120,17 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_infix_expression(
-        &mut self,
-        left: Expression<'a>,
-    ) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, ParseError<'a>> {
         let token = self.current_token;
         let precedence = self.curr_precedence();
 
         self.next_token();
         let right = self.parse_expression(precedence)?;
 
-        Ok(Expression::infix(token, left, right))
+        Ok(Expression::infix(&token, left, right))
     }
 
-    fn parse_grouped_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
+    fn parse_grouped_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         self.next_token();
 
         let exp = self.parse_expression(Precedence::Lowest)?;
@@ -147,9 +140,7 @@ impl<'a> Parser<'a> {
         Ok(exp)
     }
 
-    fn parse_if_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
-        let token = self.current_token;
-
+    fn parse_if_expression(&mut self) -> Result<Expression, ParseError<'a>> {
         self.expect_peek(TokenType::Lparen)?;
         self.next_token();
         let condition = self.parse_expression(Precedence::Lowest)?;
@@ -166,12 +157,10 @@ impl<'a> Parser<'a> {
             None
         };
 
-        Ok(Expression::r#if(token, condition, consequence, alternative))
+        Ok(Expression::r#if(condition, consequence, alternative))
     }
 
-    fn parse_function_literal(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
-        let token = self.current_token;
-
+    fn parse_function_literal(&mut self) -> Result<Expression, ParseError<'a>> {
         self.expect_peek(TokenType::Lparen)?;
 
         let parameters = self.parse_function_parameters()?;
@@ -180,10 +169,10 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block_statement()?;
 
-        Ok(Expression::function(token, parameters, body))
+        Ok(Expression::function(parameters, body))
     }
 
-    fn parse_function_parameters(&mut self) -> Result<Vec<Expression<'a>>, ParseError<'a>> {
+    fn parse_function_parameters(&mut self) -> Result<Vec<Expression>, ParseError<'a>> {
         let mut identifiers = vec![];
 
         if self.peek_token_is(TokenType::Rparen) {
@@ -192,13 +181,13 @@ impl<'a> Parser<'a> {
         }
 
         self.next_token();
-        identifiers.push(Expression::ident(self.current_token));
+        identifiers.push(Expression::ident(&self.current_token));
 
         while self.peek_token_is(TokenType::Comma) {
             self.next_token();
             self.next_token();
 
-            let ident = Expression::ident(self.current_token);
+            let ident = Expression::ident(&self.current_token);
             identifiers.push(ident);
         }
 
@@ -209,15 +198,14 @@ impl<'a> Parser<'a> {
 
     fn parse_call_expression(
         &mut self,
-        function: Expression<'a>,
-    ) -> Result<Expression<'a>, ParseError<'a>> {
-        let token = self.current_token;
+        function: Expression,
+    ) -> Result<Expression, ParseError<'a>> {
         let arguments = self.parse_call_arguments()?;
 
-        Ok(Expression::call(token, function, arguments))
+        Ok(Expression::call(function, arguments))
     }
 
-    fn parse_call_arguments(&mut self) -> Result<Vec<Expression<'a>>, ParseError<'a>> {
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParseError<'a>> {
         let mut args = vec![];
 
         if self.peek_token_is(TokenType::Rparen) {
@@ -239,32 +227,29 @@ impl<'a> Parser<'a> {
         Ok(args)
     }
 
-    fn parse_identifier(&mut self) -> Expression<'a> {
-        Expression::ident(self.current_token)
+    fn parse_identifier(&mut self) -> Expression {
+        Expression::ident(&self.current_token)
     }
 
-    fn parse_integer_literal(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
-        let token = self.current_token;
-        let value = token
+    fn parse_integer_literal(&mut self) -> Result<Expression, ParseError<'a>> {
+        let value = self
+            .current_token
             .literal()
             .parse::<i64>()
             .map_err(|_| ParseError::InvalidInteger)?;
 
-        Ok(Expression::int(token, value))
+        Ok(Expression::int(value))
     }
 
-    fn parse_boolean(&mut self) -> Expression<'a> {
-        let token = self.current_token;
+    fn parse_boolean(&mut self) -> Expression {
         let value = self.curr_token_is(TokenType::True);
 
-        Expression::bool(token, value)
+        Expression::bool(value)
     }
 
-    fn parse_let_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
-        let token = self.current_token;
-
+    fn parse_let_statement(&mut self) -> Result<Statement, ParseError<'a>> {
         self.expect_peek(TokenType::Ident)?;
-        let name = Expression::ident(self.current_token);
+        let name = Expression::ident(&self.current_token);
 
         self.expect_peek(TokenType::Assign)?;
         self.next_token();
@@ -275,11 +260,10 @@ impl<'a> Parser<'a> {
             self.next_token();
         }
 
-        Ok(Statement::r#let(token, name, value))
+        Ok(Statement::r#let(name, value))
     }
 
-    fn parse_return_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
-        let token = self.current_token;
+    fn parse_return_statement(&mut self) -> Result<Statement, ParseError<'a>> {
         self.next_token();
 
         let value = self.parse_expression(Precedence::Lowest)?;
@@ -288,11 +272,11 @@ impl<'a> Parser<'a> {
             self.next_token();
         }
 
-        Ok(Statement::r#return(token, value))
+        Ok(Statement::r#return(value))
     }
 
-    fn parse_block_statement(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
-        let token = self.current_token;
+    fn parse_block_statement(&mut self) -> Result<Expression, ParseError<'a>> {
+        let _token = self.current_token;
         let mut statements = vec![];
         self.next_token();
 
@@ -301,7 +285,7 @@ impl<'a> Parser<'a> {
             self.next_token();
         }
 
-        Ok(Expression::block(token, statements))
+        Ok(Expression::block(statements))
     }
 
     fn curr_token_is(&self, token_type: TokenType) -> bool {
@@ -380,12 +364,11 @@ mod tests {
             let statements = program.statements();
             assert_eq!(statements.len(), 1);
 
-            let Statement::Let { token, name, value } = &statements[0] else {
+            let Statement::Let { name, value, .. } = &statements[0] else {
                 panic!("expected let statement, got {:#?}", statements[0]);
             };
 
-            assert_eq!(token.literal(), "let");
-            assert_eq!(name.token_literal(), expected_identifier);
+            assert_eq!(name.to_string(), expected_identifier);
             test_literal_expression(value, expected_value);
         }
     }
@@ -404,21 +387,20 @@ mod tests {
             let statements = program.statements();
             assert_eq!(statements.len(), 1);
 
-            let Statement::Return { token, value } = &statements[0] else {
+            let Statement::Return { value } = &statements[0] else {
                 panic!("expected return statement, got {:#?}", statements[0]);
             };
 
-            assert_eq!(token.literal(), "return");
             test_literal_expression(value, expected_value);
         }
     }
     #[test]
     fn test_program() {
-        let statement = Statement::r#let(
-            Token::from_keyword("let"),
-            Expression::ident(Token::from_keyword("myVar")),
-            Expression::ident(Token::from_keyword("anotherVar")),
-        );
+        let my_var = Token::from_keyword("myVar");
+        let another_var = Token::from_keyword("anotherVar");
+
+        let statement =
+            Statement::r#let(Expression::ident(&my_var), Expression::ident(&another_var));
         let program = Program::new(vec![statement]);
 
         assert_eq!(program.to_string(), "let myVar = anotherVar;");
@@ -695,7 +677,7 @@ mod tests {
     }
 
     // test expression helpers
-    fn expect_expression<'a>(statement: &'a Statement<'a>) -> &'a Expression<'a> {
+    fn expect_expression(statement: &Statement) -> &Expression {
         let Statement::Expression { expression, .. } = statement else {
             panic!("expected expression statement, got {statement:#?}");
         };
@@ -729,15 +711,10 @@ mod tests {
     }
 
     fn test_identifier(expression: &Expression, value: &str) {
-        let Expression::Ident {
-            token,
-            value: ident_value,
-        } = expression
-        else {
+        let Expression::Ident { value: ident_value } = expression else {
             panic!("expected identifier expression, got {expression:#?}");
         };
 
-        assert_eq!(token.literal(), value);
         assert_eq!(ident_value, &value);
     }
 
@@ -750,10 +727,6 @@ mod tests {
         };
 
         assert_eq!(*expr_value, value);
-        assert_eq!(
-            expression.token_literal(),
-            if value { "true" } else { "false" }
-        )
     }
 
     fn test_infix_expression(
@@ -777,8 +750,8 @@ mod tests {
         test_literal_expression(infix_right, right);
     }
 
-    fn expect_block_expression<'a>(expression: &'a Expression<'a>) -> &'a [Statement<'a>] {
-        let Expression::Block { statements, .. } = expression else {
+    fn expect_block_expression(expression: &Expression) -> &[Statement] {
+        let Expression::Block { statements } = expression else {
             panic!("expected block expression, got {expression:#?}");
         };
 

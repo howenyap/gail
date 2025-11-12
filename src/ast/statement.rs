@@ -1,48 +1,36 @@
 use crate::ast::Expression;
-use crate::token::Token;
 use std::fmt::{self, Display};
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Statement<'a> {
+pub enum Statement {
     Let {
-        token: Token<'a>,
         // invariant: expression must be Identifier
-        name: Expression<'a>,
-        value: Expression<'a>,
+        name: Expression,
+        value: Expression,
     },
     Return {
-        token: Token<'a>,
-        value: Expression<'a>,
+        value: Expression,
     },
     Expression {
-        token: Token<'a>,
-        expression: Expression<'a>,
+        expression: Expression,
     },
 }
 
-impl<'a> Statement<'a> {
-    pub fn r#let(token: Token<'a>, name: Expression<'a>, value: Expression<'a>) -> Self {
-        Self::Let { token, name, value }
+impl Statement {
+    pub fn r#let(name: Expression, value: Expression) -> Self {
+        Self::Let { name, value }
     }
 
-    pub fn r#return(token: Token<'a>, value: Expression<'a>) -> Self {
-        Self::Return { token, value }
+    pub fn r#return(value: Expression) -> Self {
+        Self::Return { value }
     }
 
-    pub fn expression(token: Token<'a>, expression: Expression<'a>) -> Self {
-        Self::Expression { token, expression }
-    }
-
-    pub fn token_literal(&self) -> &str {
-        match self {
-            Statement::Let { token, .. } => token.literal(),
-            Statement::Return { token, .. } => token.literal(),
-            Statement::Expression { token, .. } => token.literal(),
-        }
+    pub fn expression(expression: Expression) -> Self {
+        Self::Expression { expression }
     }
 }
 
-impl<'a> Display for Statement<'a> {
+impl Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Statement::Let { name, value, .. } => write!(f, "let {name} = {value};"),

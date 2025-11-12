@@ -13,9 +13,9 @@ impl Evaluator {
 
     pub fn eval(&self, node: &Node, env: &mut Environment) -> Result<Object> {
         match node {
-            Node::Expression(expr) => self.eval_expression(&expr, env),
-            Node::Statement(stmt) => self.eval_statement(&stmt, env),
-            Node::Program(prog) => self.eval_program(&prog, env),
+            Node::Expression(expr) => self.eval_expression(expr, env),
+            Node::Statement(stmt) => self.eval_statement(stmt, env),
+            Node::Program(prog) => self.eval_program(prog, env),
         }
     }
 
@@ -133,7 +133,7 @@ impl Evaluator {
 
     fn eval_block_expression(
         &self,
-        statements: &Vec<Statement>,
+        statements: &[Statement],
         env: &mut Environment,
     ) -> Result<Object> {
         let mut result = Object::Null;

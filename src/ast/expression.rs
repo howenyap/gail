@@ -4,178 +4,130 @@ use std::fmt::{self, Display};
 use super::Statement;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expression<'a> {
+pub enum Expression {
     Ident {
-        token: Token<'a>,
-        value: &'a str,
+        value: String,
     },
     Int {
-        token: Token<'a>,
         value: i64,
     },
     Bool {
-        token: Token<'a>,
         value: bool,
     },
     If {
-        token: Token<'a>,
-        condition: Box<Expression<'a>>,
+        condition: Box<Expression>,
         // invariant: expression must be Block
-        consequence: Box<Expression<'a>>,
+        consequence: Box<Expression>,
         // invariant: expression must be Block
-        alternative: Box<Option<Expression<'a>>>,
+        alternative: Box<Option<Expression>>,
     },
     Function {
-        token: Token<'a>,
         // invariant: expression must be Identifier
-        parameters: Vec<Expression<'a>>,
+        parameters: Vec<Expression>,
         // invariant: expression must be Block
-        body: Box<Expression<'a>>,
+        body: Box<Expression>,
     },
     Prefix {
-        token: Token<'a>,
-        operator: &'a str,
-        right: Box<Expression<'a>>,
+        operator: String,
+        right: Box<Expression>,
     },
     Infix {
-        token: Token<'a>,
-        left: Box<Expression<'a>>,
-        operator: &'a str,
-        right: Box<Expression<'a>>,
+        left: Box<Expression>,
+        operator: String,
+        right: Box<Expression>,
     },
     Block {
-        token: Token<'a>,
-        statements: Vec<Statement<'a>>,
+        statements: Vec<Statement>,
     },
     Call {
-        token: Token<'a>,
         // invariant: expression must be Function
-        function: Box<Expression<'a>>,
-        arguments: Vec<Expression<'a>>,
+        function: Box<Expression>,
+        arguments: Vec<Expression>,
     },
 }
 
-impl<'a> Expression<'a> {
-    pub fn ident(token: Token<'a>) -> Self {
+impl Expression {
+    pub fn ident(token: &Token) -> Self {
         Self::Ident {
-            token,
-            value: token.literal,
+            value: token.literal().to_string(),
         }
     }
 
-    pub fn int(token: Token<'a>, value: i64) -> Self {
-        Self::Int { token, value }
+    pub fn int(value: i64) -> Self {
+        Self::Int { value }
     }
 
-    pub fn bool(token: Token<'a>, value: bool) -> Self {
-        Self::Bool { token, value }
+    pub fn bool(value: bool) -> Self {
+        Self::Bool { value }
     }
 
-    pub fn prefix(token: Token<'a>, right: Expression<'a>) -> Self {
+    pub fn prefix(token: &Token, right: Expression) -> Self {
         Self::Prefix {
-            token,
-            operator: token.literal,
+            operator: token.literal().to_string(),
             right: Box::new(right),
         }
     }
 
     pub fn r#if(
-        token: Token<'a>,
-        condition: Expression<'a>,
-        consequence: Expression<'a>,
-        alternative: Option<Expression<'a>>,
+        condition: Expression,
+        consequence: Expression,
+        alternative: Option<Expression>,
     ) -> Self {
         Self::If {
-            token,
             condition: Box::new(condition),
             consequence: Box::new(consequence),
             alternative: Box::new(alternative),
         }
     }
 
-    pub fn infix(token: Token<'a>, left: Expression<'a>, right: Expression<'a>) -> Self {
+    pub fn infix(token: &Token, left: Expression, right: Expression) -> Self {
         Self::Infix {
-            token,
             left: Box::new(left),
-            operator: token.literal,
+            operator: token.literal().to_string(),
             right: Box::new(right),
         }
     }
 
-    pub fn block(token: Token<'a>, statements: Vec<Statement<'a>>) -> Self {
-        Self::Block { token, statements }
+    pub fn block(statements: Vec<Statement>) -> Self {
+        Self::Block { statements }
     }
 
-    pub fn function(
-        token: Token<'a>,
-        parameters: Vec<Expression<'a>>,
-        body: Expression<'a>,
-    ) -> Self {
+    pub fn function(parameters: Vec<Expression>, body: Expression) -> Self {
         Self::Function {
-            token,
             parameters,
             body: Box::new(body),
         }
     }
 
-    pub fn call(
-        token: Token<'a>,
-        function: Expression<'a>,
-        arguments: Vec<Expression<'a>>,
-    ) -> Self {
+    pub fn call(function: Expression, arguments: Vec<Expression>) -> Self {
         Self::Call {
-            token,
             function: Box::new(function),
             arguments,
         }
     }
-
-    pub fn token(&self) -> &Token<'a> {
-        match self {
-            Self::Ident { token, .. } => token,
-            Self::Int { token, .. } => token,
-            Self::Bool { token, .. } => token,
-            Self::Prefix { token, .. } => token,
-            Self::Infix { token, .. } => token,
-            Self::If { token, .. } => token,
-            Self::Function { token, .. } => token,
-            Self::Block { token, .. } => token,
-            Self::Call { token, .. } => token,
-        }
-    }
-
-    pub fn token_literal(&self) -> &str {
-        self.token().literal()
-    }
 }
 
-impl<'a> Display for Expression<'a> {
+impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ident { value, .. } => write!(f, "{value}"),
-            Self::Int { value, .. } => write!(f, "{value}"),
-            Self::Bool { value, .. } => write!(f, "{value}"),
-            Self::Prefix {
-                operator, right, ..
-            } => write!(f, "({operator}{right})"),
+            Self::Ident { value } => write!(f, "{value}"),
+            Self::Int { value } => write!(f, "{value}"),
+            Self::Bool { value } => write!(f, "{value}"),
+            Self::Prefix { operator, right } => write!(f, "({operator}{right})"),
             Self::Infix {
                 left,
                 operator,
                 right,
-                ..
             } => write!(f, "({left} {operator} {right})"),
             Self::If {
                 condition,
                 consequence,
                 alternative,
-                ..
             } => match alternative.as_ref() {
                 Some(alternative) => write!(f, "if {condition} {consequence} else {alternative}"),
                 None => write!(f, "if {condition} {consequence}"),
             },
-            Self::Function {
-                parameters, body, ..
-            } => {
+            Self::Function { parameters, body } => {
                 let params: String = parameters
                     .iter()
                     .map(|p| p.to_string())
@@ -184,14 +136,13 @@ impl<'a> Display for Expression<'a> {
 
                 write!(f, "fn({params}) {body} ")
             }
-            Self::Block { statements, .. } => {
+            Self::Block { statements } => {
                 let s: String = statements.iter().map(|s| s.to_string()).collect();
                 write!(f, "{s}")
             }
             Self::Call {
                 function,
                 arguments,
-                ..
             } => {
                 let args: String = arguments
                     .iter()

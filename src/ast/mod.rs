@@ -28,16 +28,16 @@ impl Default for Precedence {
 use std::fmt;
 
 #[derive(Debug, PartialEq)]
-pub struct Program<'a> {
-    statements: Vec<Statement<'a>>,
+pub struct Program {
+    statements: Vec<Statement>,
 }
 
-impl<'a> Program<'a> {
-    pub fn new(statements: Vec<Statement<'a>>) -> Self {
+impl Program {
+    pub fn new(statements: Vec<Statement>) -> Self {
         Self { statements }
     }
 
-    pub fn from_str(input: &'a str) -> Result<Self, ProgramError> {
+    pub fn from_str(input: &str) -> Result<Self, ProgramError> {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
@@ -50,42 +50,25 @@ impl<'a> Program<'a> {
         }
     }
 
-    pub fn statements(&self) -> &[Statement<'a>] {
+    pub fn statements(&self) -> &[Statement] {
         &self.statements
-    }
-
-    pub fn token_literal(&self) -> &str {
-        self.statements
-            .first()
-            .map(|stmt| stmt.token_literal())
-            .unwrap_or_default()
     }
 }
 
-impl<'a> From<Program<'a>> for Node<'a> {
-    fn from(program: Program<'a>) -> Self {
+impl From<Program> for Node {
+    fn from(program: Program) -> Self {
         Node::Program(program)
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Node<'a> {
-    Program(Program<'a>),
-    Statement(Statement<'a>),
-    Expression(Expression<'a>),
+pub enum Node {
+    Program(Program),
+    Statement(Statement),
+    Expression(Expression),
 }
 
-impl<'a> Node<'a> {
-    pub fn token_literal(&self) -> &str {
-        match self {
-            Node::Program(p) => p.token_literal(),
-            Node::Statement(s) => s.token_literal(),
-            Node::Expression(e) => e.token_literal(),
-        }
-    }
-}
-
-impl<'a> fmt::Display for Program<'a> {
+impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for stmt in self.statements.iter() {
             write!(f, "{stmt}")?;
@@ -95,7 +78,7 @@ impl<'a> fmt::Display for Program<'a> {
     }
 }
 
-impl<'a> fmt::Display for Node<'a> {
+impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Node::Program(p) => write!(f, "{p}"),
