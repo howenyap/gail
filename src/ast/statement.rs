@@ -2,7 +2,7 @@ use crate::ast::Expression;
 use crate::token::Token;
 use std::fmt::{self, Display};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement<'a> {
     Let {
         token: Token<'a>,

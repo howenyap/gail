@@ -3,7 +3,7 @@ use std::fmt::{self, Display};
 
 use super::Statement;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression<'a> {
     Ident {
         token: Token<'a>,

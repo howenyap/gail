@@ -1,6 +1,7 @@
 use crate::object::Object;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone)]
 pub struct Environment {
     bindings: HashMap<String, Object>,
 }

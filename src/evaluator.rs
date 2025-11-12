@@ -4,67 +4,61 @@ use crate::environment::Environment;
 use crate::error::EvalError;
 use crate::object::{Object, ObjectTrait};
 
-pub struct Evaluator {
-    env: Environment,
-}
+pub struct Evaluator;
 
 impl Evaluator {
     pub fn new() -> Self {
-        Self {
-            env: Environment::new(),
-        }
+        Self
     }
 
-    pub fn eval(&mut self, node: &Node) -> Result<Object> {
+    pub fn eval(&self, node: &Node, env: &mut Environment) -> Result<Object> {
         match node {
-            Node::Expression(expr) => self.eval_expression(expr),
-            Node::Statement(stmt) => self.eval_statement(stmt),
-            Node::Program(prog) => self.eval_program(prog),
+            Node::Expression(expr) => self.eval_expression(&expr, env),
+            Node::Statement(stmt) => self.eval_statement(&stmt, env),
+            Node::Program(prog) => self.eval_program(&prog, env),
         }
     }
 
-    fn eval_expression(&mut self, expr: &Expression) -> Result<Object> {
+    fn eval_expression(&self, expr: &Expression, env: &mut Environment) -> Result<Object> {
         let evaluated = match expr {
             Expression::Int { value, .. } => Object::Integer(*value),
             Expression::Bool { value, .. } => Object::Boolean(*value),
             Expression::Prefix {
                 operator, right, ..
-            } => self.eval_prefix_expression(operator, right)?,
+            } => self.eval_prefix_expression(operator, right, env)?,
             Expression::Infix {
                 left,
                 operator,
                 right,
                 ..
-            } => self.eval_infix_expression(left, operator, right)?,
+            } => self.eval_infix_expression(left, operator, right, env)?,
             Expression::If {
                 condition,
                 consequence,
                 alternative,
                 ..
-            } => self.eval_conditional_expression(condition, consequence, alternative)?,
-            Expression::Block { statements, .. } => self.eval_block_expression(statements)?,
-            Expression::Ident { value, .. } => self.eval_identifier(value)?,
+            } => self.eval_conditional_expression(condition, consequence, alternative, env)?,
+            Expression::Block { statements, .. } => self.eval_block_expression(statements, env)?,
+            Expression::Ident { value, .. } => self.eval_identifier(value, &*env)?,
             _ => todo!(),
         };
 
         Ok(evaluated)
     }
 
-    fn eval_statement(&mut self, stmt: &Statement) -> Result<Object> {
-        let evaluated = match stmt {
-            Statement::Expression { expression, .. } => self.eval_expression(expression)?,
-            Statement::Return { value, .. } => self.eval_return_statement(value)?,
-            Statement::Let { name, value, .. } => self.eval_let_statement(name, value)?,
-        };
-
-        Ok(evaluated)
+    fn eval_statement(&self, stmt: &Statement, env: &mut Environment) -> Result<Object> {
+        match stmt {
+            Statement::Expression { expression, .. } => self.eval_expression(expression, env),
+            Statement::Return { value, .. } => self.eval_return_statement(value, env),
+            Statement::Let { name, value, .. } => self.eval_let_statement(name, value, env),
+        }
     }
 
-    fn eval_program(&mut self, prog: &Program) -> Result<Object> {
+    fn eval_program(&self, prog: &Program, env: &mut Environment) -> Result<Object> {
         let mut result = Object::Null;
 
         for stmt in prog.statements().iter() {
-            result = self.eval_statement(stmt)?;
+            result = self.eval_statement(stmt, env)?;
 
             if let Object::ReturnValue(value) = result {
                 return Ok(*value);
@@ -74,8 +68,13 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_prefix_expression(&mut self, operator: &str, right: &Expression) -> Result<Object> {
-        let right = self.eval_expression(right)?;
+    fn eval_prefix_expression(
+        &self,
+        operator: &str,
+        right: &Expression,
+        env: &mut Environment,
+    ) -> Result<Object> {
+        let right = self.eval_expression(right, env)?;
 
         match operator {
             "!" => right.bang(),
@@ -88,13 +87,14 @@ impl Evaluator {
     }
 
     fn eval_infix_expression(
-        &mut self,
+        &self,
         left: &Expression,
         operator: &str,
         right: &Expression,
+        env: &mut Environment,
     ) -> Result<Object> {
-        let left = self.eval_expression(left)?;
-        let right = self.eval_expression(right)?;
+        let left = self.eval_expression(left, env)?;
+        let right = self.eval_expression(right, env)?;
 
         match operator {
             "+" => left.add(right),
@@ -114,27 +114,32 @@ impl Evaluator {
     }
 
     fn eval_conditional_expression(
-        &mut self,
+        &self,
         condition: &Expression,
         consequence: &Expression,
         alternative: &Option<Expression>,
+        env: &mut Environment,
     ) -> Result<Object> {
-        let condition = self.eval_expression(condition)?;
+        let condition = self.eval_expression(condition, env)?;
 
         if condition.is_truthy() {
-            self.eval_expression(consequence)
+            self.eval_expression(consequence, env)
         } else if let Some(alternative) = alternative {
-            self.eval_expression(alternative)
+            self.eval_expression(alternative, env)
         } else {
             Ok(Object::Null)
         }
     }
 
-    fn eval_block_expression(&mut self, statements: &Vec<Statement>) -> Result<Object> {
+    fn eval_block_expression(
+        &self,
+        statements: &Vec<Statement>,
+        env: &mut Environment,
+    ) -> Result<Object> {
         let mut result = Object::Null;
 
         for stmt in statements.iter() {
-            result = self.eval_statement(stmt)?;
+            result = self.eval_statement(stmt, env)?;
 
             if result.is_return_value() {
                 return Ok(result);
@@ -144,24 +149,36 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_identifier(&mut self, name: &str) -> Result<Object> {
-        self.env
-            .get(name)
+    fn eval_identifier(&self, name: &str, env: &Environment) -> Result<Object> {
+        env.get(name)
             .cloned()
             .ok_or_else(|| EvalError::IdentifierNotFound {
                 name: name.to_string(),
             })
     }
 
-    fn eval_return_statement(&mut self, value: &Expression) -> Result<Object> {
-        let value = self.eval_expression(value)?;
+    fn eval_return_statement(&self, value: &Expression, env: &mut Environment) -> Result<Object> {
+        let value = self.eval_expression(value, env)?;
 
         Ok(Object::return_value(value))
     }
 
-    fn eval_let_statement(&mut self, name: &Expression, value: &Expression) -> Result<Object> {
-        let value = self.eval_expression(value)?;
-        self.env.set(name.to_string(), value);
+    fn eval_let_statement(
+        &self,
+        name: &Expression,
+        value: &Expression,
+        env: &mut Environment,
+    ) -> Result<Object> {
+        let value = self.eval_expression(value, env)?;
+        let name_str = match name {
+            Expression::Ident { value, .. } => value.to_string(),
+            _ => {
+                return Err(EvalError::IdentifierNotFound {
+                    name: name.to_string(),
+                });
+            }
+        };
+        env.set(name_str, value);
 
         Ok(Object::Null)
     }
@@ -173,6 +190,7 @@ type Result<T> = std::result::Result<T, EvalError>;
 mod tests {
     use super::*;
     use crate::ast::Program;
+    use crate::environment::Environment;
     use crate::object::Object;
 
     #[test]
@@ -363,9 +381,10 @@ mod tests {
 
     fn test_error_object(input: &str, expected: &str) {
         let program = Program::from_str(input).expect("program construction failed");
-        let mut evaluator = Evaluator::new();
+        let evaluator = Evaluator::new();
+        let mut env = Environment::new();
 
-        match evaluator.eval(&program.into()) {
+        match evaluator.eval(&Node::Program(program), &mut env) {
             Ok(_) => panic!("expected error but got no error"),
             Err(error) => assert_eq!(error.to_string(), expected),
         }
@@ -373,8 +392,11 @@ mod tests {
 
     fn test_eval(input: &str) -> Object {
         let program = Program::from_str(input).expect("program construction failed");
-        let mut evaluator = Evaluator::new();
+        let evaluator = Evaluator::new();
+        let mut env = Environment::new();
 
-        evaluator.eval(&program.into()).expect("evaluation failed")
+        evaluator
+            .eval(&program.into(), &mut env)
+            .expect("evaluation failed")
     }
 }

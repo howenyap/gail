@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::evaluator::Evaluator;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
@@ -11,7 +12,9 @@ impl Repl {
         let input = io::stdin();
         let mut output = io::stdout();
         let mut line = String::new();
-        let mut evaluator = Evaluator::new();
+
+        let evaluator = Evaluator::new();
+        let mut env = Environment::new();
 
         loop {
             write!(output, ">> ")?;
@@ -29,7 +32,7 @@ impl Repl {
             if parser.has_errors() {
                 parser.print_errors();
             } else {
-                match evaluator.eval(&program.into()) {
+                match evaluator.eval(&program.into(), &mut env) {
                     Ok(evaluated) => writeln!(output, "{evaluated}")?,
                     Err(error) => writeln!(output, "Error: {error}")?,
                 }
