@@ -11,6 +11,7 @@ impl Repl {
         let input = io::stdin();
         let mut output = io::stdout();
         let mut line = String::new();
+        let mut evaluator = Evaluator::new();
 
         loop {
             write!(output, ">> ")?;
@@ -28,7 +29,7 @@ impl Repl {
             if parser.has_errors() {
                 parser.print_errors();
             } else {
-                match Evaluator::eval(&program.into()) {
+                match evaluator.eval(&program.into()) {
                     Ok(evaluated) => writeln!(output, "{evaluated}")?,
                     Err(error) => writeln!(output, "Error: {error}")?,
                 }

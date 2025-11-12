@@ -1,60 +1,70 @@
 use crate::ast::Node;
 use crate::ast::{Expression, Program, Statement};
+use crate::environment::Environment;
 use crate::error::EvalError;
 use crate::object::{Object, ObjectTrait};
 
-pub struct Evaluator;
+pub struct Evaluator {
+    env: Environment,
+}
 
 impl Evaluator {
-    pub fn eval(node: &Node) -> Result<Object> {
-        match node {
-            Node::Expression(expr) => Self::eval_expression(expr),
-            Node::Statement(stmt) => Self::eval_statement(stmt),
-            Node::Program(prog) => Self::eval_program(prog),
+    pub fn new() -> Self {
+        Self {
+            env: Environment::new(),
         }
     }
 
-    fn eval_expression(expr: &Expression) -> Result<Object> {
+    pub fn eval(&mut self, node: &Node) -> Result<Object> {
+        match node {
+            Node::Expression(expr) => self.eval_expression(expr),
+            Node::Statement(stmt) => self.eval_statement(stmt),
+            Node::Program(prog) => self.eval_program(prog),
+        }
+    }
+
+    fn eval_expression(&mut self, expr: &Expression) -> Result<Object> {
         let evaluated = match expr {
             Expression::Int { value, .. } => Object::Integer(*value),
             Expression::Bool { value, .. } => Object::Boolean(*value),
             Expression::Prefix {
                 operator, right, ..
-            } => Self::eval_prefix_expression(operator, right)?,
+            } => self.eval_prefix_expression(operator, right)?,
             Expression::Infix {
                 left,
                 operator,
                 right,
                 ..
-            } => Self::eval_infix_expression(left, operator, right)?,
+            } => self.eval_infix_expression(left, operator, right)?,
             Expression::If {
                 condition,
                 consequence,
                 alternative,
                 ..
-            } => Self::eval_conditional_expression(condition, consequence, alternative)?,
-            Expression::Block { statements, .. } => Self::eval_block_expression(statements)?,
+            } => self.eval_conditional_expression(condition, consequence, alternative)?,
+            Expression::Block { statements, .. } => self.eval_block_expression(statements)?,
+            Expression::Ident { value, .. } => self.eval_identifier(value)?,
             _ => todo!(),
         };
 
         Ok(evaluated)
     }
 
-    fn eval_statement(stmt: &Statement) -> Result<Object> {
+    fn eval_statement(&mut self, stmt: &Statement) -> Result<Object> {
         let evaluated = match stmt {
-            Statement::Expression { expression, .. } => Self::eval_expression(expression)?,
-            Statement::Return { value, .. } => Self::eval_return_statement(value)?,
-            _ => todo!(),
+            Statement::Expression { expression, .. } => self.eval_expression(expression)?,
+            Statement::Return { value, .. } => self.eval_return_statement(value)?,
+            Statement::Let { name, value, .. } => self.eval_let_statement(name, value)?,
         };
 
         Ok(evaluated)
     }
 
-    fn eval_program(prog: &Program) -> Result<Object> {
+    fn eval_program(&mut self, prog: &Program) -> Result<Object> {
         let mut result = Object::Null;
 
         for stmt in prog.statements().iter() {
-            result = Self::eval_statement(stmt)?;
+            result = self.eval_statement(stmt)?;
 
             if let Object::ReturnValue(value) = result {
                 return Ok(*value);
@@ -64,8 +74,8 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_prefix_expression(operator: &str, right: &Expression) -> Result<Object> {
-        let right = Self::eval_expression(right)?;
+    fn eval_prefix_expression(&mut self, operator: &str, right: &Expression) -> Result<Object> {
+        let right = self.eval_expression(right)?;
 
         match operator {
             "!" => right.bang(),
@@ -78,12 +88,13 @@ impl Evaluator {
     }
 
     fn eval_infix_expression(
+        &mut self,
         left: &Expression,
         operator: &str,
         right: &Expression,
     ) -> Result<Object> {
-        let left = Self::eval_expression(left)?;
-        let right = Self::eval_expression(right)?;
+        let left = self.eval_expression(left)?;
+        let right = self.eval_expression(right)?;
 
         match operator {
             "+" => left.add(right),
@@ -103,26 +114,27 @@ impl Evaluator {
     }
 
     fn eval_conditional_expression(
+        &mut self,
         condition: &Expression,
         consequence: &Expression,
         alternative: &Option<Expression>,
     ) -> Result<Object> {
-        let condition = Self::eval_expression(condition)?;
+        let condition = self.eval_expression(condition)?;
 
         if condition.is_truthy() {
-            Self::eval_expression(consequence)
+            self.eval_expression(consequence)
         } else if let Some(alternative) = alternative {
-            Self::eval_expression(alternative)
+            self.eval_expression(alternative)
         } else {
             Ok(Object::Null)
         }
     }
 
-    fn eval_block_expression(statements: &Vec<Statement>) -> Result<Object> {
+    fn eval_block_expression(&mut self, statements: &Vec<Statement>) -> Result<Object> {
         let mut result = Object::Null;
 
         for stmt in statements.iter() {
-            result = Self::eval_statement(stmt)?;
+            result = self.eval_statement(stmt)?;
 
             if result.is_return_value() {
                 return Ok(result);
@@ -132,10 +144,26 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_return_statement(value: &Expression) -> Result<Object> {
-        let value = Self::eval_expression(value)?;
+    fn eval_identifier(&mut self, name: &str) -> Result<Object> {
+        self.env
+            .get(name)
+            .cloned()
+            .ok_or_else(|| EvalError::IdentifierNotFound {
+                name: name.to_string(),
+            })
+    }
+
+    fn eval_return_statement(&mut self, value: &Expression) -> Result<Object> {
+        let value = self.eval_expression(value)?;
 
         Ok(Object::return_value(value))
+    }
+
+    fn eval_let_statement(&mut self, name: &Expression, value: &Expression) -> Result<Object> {
+        let value = self.eval_expression(value)?;
+        self.env.set(name.to_string(), value);
+
+        Ok(Object::Null)
     }
 }
 
@@ -143,12 +171,9 @@ type Result<T> = std::result::Result<T, EvalError>;
 
 #[cfg(test)]
 mod tests {
-    use super::Evaluator;
+    use super::*;
     use crate::ast::Program;
-    use crate::error::ProgramError;
-    use crate::lexer::Lexer;
     use crate::object::Object;
-    use crate::parser::Parser;
 
     #[test]
     fn test_eval_integer_expression() {
@@ -236,12 +261,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-
-            match expected {
-                Object::Integer(expected) => test_integer_object(evaluated, expected),
-                Object::Null => assert!(evaluated.is_null()),
-                _ => unreachable!(),
-            }
+            test_object(evaluated, expected);
         }
     }
 
@@ -268,11 +288,25 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
+            test_object(evaluated, expected);
+        }
+    }
 
-            match expected {
-                Object::Integer(expected) => test_integer_object(evaluated, expected),
-                _ => unreachable!(),
-            }
+    #[test]
+    fn test_let_statements() {
+        let tests = vec![
+            ("let a = 5; a;", Object::Integer(5)),
+            ("let a = 5 * 5; a;", Object::Integer(25)),
+            ("let a = 5; let b = a; b;", Object::Integer(5)),
+            (
+                "let a = 5; let b = a; let c = a + b + 5; c;",
+                Object::Integer(15),
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_object(evaluated, expected);
         }
     }
 
@@ -293,10 +327,21 @@ mod tests {
                 "5; true + false; 5",
                 "unsupported infix operator: Boolean + Boolean",
             ),
+            ("foobar", "identifier not found: foobar"),
         ];
 
         for (input, expected) in tests {
             test_error_object(input, expected);
+        }
+    }
+
+    fn test_object(object: Object, expected: Object) {
+        match (object, expected) {
+            (Object::Integer(left), Object::Integer(right)) => assert_eq!(left, right),
+            (Object::Boolean(left), Object::Boolean(right)) => assert_eq!(left, right),
+            (Object::Null, Object::Null) => (),
+            (Object::ReturnValue(left), Object::ReturnValue(right)) => test_object(*left, *right),
+            _ => unreachable!(),
         }
     }
 
@@ -318,8 +363,9 @@ mod tests {
 
     fn test_error_object(input: &str, expected: &str) {
         let program = Program::from_str(input).expect("program construction failed");
+        let mut evaluator = Evaluator::new();
 
-        match Evaluator::eval(&program.into()) {
+        match evaluator.eval(&program.into()) {
             Ok(_) => panic!("expected error but got no error"),
             Err(error) => assert_eq!(error.to_string(), expected),
         }
@@ -327,7 +373,8 @@ mod tests {
 
     fn test_eval(input: &str) -> Object {
         let program = Program::from_str(input).expect("program construction failed");
+        let mut evaluator = Evaluator::new();
 
-        Evaluator::eval(&program.into()).expect("evaluation failed")
+        evaluator.eval(&program.into()).expect("evaluation failed")
     }
 }

@@ -2,7 +2,7 @@ use std::fmt::{self, Debug, Display};
 
 use crate::error::EvalError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
@@ -10,7 +10,7 @@ pub enum Object {
     ReturnValue(Box<Object>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ObjectType {
     Integer,
     Boolean,

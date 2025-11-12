@@ -59,6 +59,9 @@ pub enum EvalError {
         operator: String,
     },
     DivisionByZero,
+    IdentifierNotFound {
+        name: String,
+    },
 }
 
 impl Display for EvalError {
@@ -81,6 +84,7 @@ impl Display for EvalError {
                 write!(f, "unsupported prefix operator: {operator}{right:?}")
             }
             EvalError::DivisionByZero => write!(f, "division by zero"),
+            EvalError::IdentifierNotFound { name } => write!(f, "identifier not found: {name}"),
         }
     }
 }
