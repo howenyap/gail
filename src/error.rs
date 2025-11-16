@@ -59,8 +59,15 @@ pub enum EvalError {
         operator: String,
     },
     DivisionByZero,
+    NotAFunction {
+        function: ObjectType,
+    },
     IdentifierNotFound {
         name: String,
+    },
+    InvalidArgumentCount {
+        expected: usize,
+        got: usize,
     },
 }
 
@@ -84,7 +91,11 @@ impl Display for EvalError {
                 write!(f, "unsupported prefix operator: {operator}{right:?}")
             }
             EvalError::DivisionByZero => write!(f, "division by zero"),
+            EvalError::NotAFunction { function } => write!(f, "not a function: {function:?}"),
             EvalError::IdentifierNotFound { name } => write!(f, "identifier not found: {name}"),
+            EvalError::InvalidArgumentCount { expected, got } => {
+                write!(f, "expected {expected} arguments, got {got} instead")
+            }
         }
     }
 }

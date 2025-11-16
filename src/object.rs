@@ -1,5 +1,7 @@
 use std::fmt::{self, Debug, Display};
 
+use crate::ast::Expression;
+use crate::environment::Environment;
 use crate::error::EvalError;
 
 #[derive(Debug, Clone)]
@@ -8,6 +10,11 @@ pub enum Object {
     Boolean(bool),
     Null,
     ReturnValue(Box<Object>),
+    Function {
+        parameters: Vec<String>,
+        body: Box<Expression>,
+        env: Environment,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -16,6 +23,7 @@ pub enum ObjectType {
     Boolean,
     Null,
     ReturnValue,
+    Function,
 }
 
 pub trait ObjectTrait {
@@ -208,6 +216,7 @@ impl ObjectTrait for Object {
             Object::Boolean(_) => ObjectType::Boolean,
             Object::Null => ObjectType::Null,
             Object::ReturnValue(_) => ObjectType::ReturnValue,
+            Object::Function { .. } => ObjectType::Function,
         }
     }
 
@@ -217,6 +226,17 @@ impl ObjectTrait for Object {
             Object::Boolean(value) => value.to_string(),
             Object::Null => "null".to_string(),
             Object::ReturnValue(value) => value.inspect(),
+            Object::Function {
+                parameters, body, ..
+            } => {
+                let params: String = parameters
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                format!("fn({params}) {{\n{body}\n}}")
+            }
         }
     }
 }

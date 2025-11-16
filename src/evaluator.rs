@@ -3,6 +3,7 @@ use crate::ast::{Expression, Program, Statement};
 use crate::environment::Environment;
 use crate::error::EvalError;
 use crate::object::{Object, ObjectTrait};
+use std::collections::HashMap;
 
 pub struct Evaluator;
 
@@ -40,7 +41,14 @@ impl Evaluator {
             } => self.eval_conditional_expression(condition, consequence, alternative, env)?,
             Expression::Block { statements, .. } => self.eval_block_expression(statements, env)?,
             Expression::Ident { value, .. } => self.eval_identifier(value, &*env)?,
-            _ => todo!(),
+            Expression::Function {
+                parameters, body, ..
+            } => self.eval_function_expression(parameters, body, env),
+            Expression::Call {
+                function,
+                arguments,
+                ..
+            } => self.eval_call_expression(function, arguments, env)?,
         };
 
         Ok(evaluated)
@@ -147,6 +155,58 @@ impl Evaluator {
         }
 
         Ok(result)
+    }
+
+    fn eval_function_expression(
+        &self,
+        parameters: &[Expression],
+        body: &Expression,
+        env: &mut Environment,
+    ) -> Object {
+        let parameters: Vec<String> = parameters.iter().map(|p| p.to_string()).collect();
+
+        Object::Function {
+            parameters,
+            body: Box::new(body.clone()),
+            env: env.clone(),
+        }
+    }
+
+    fn eval_call_expression(
+        &self,
+        function: &Expression,
+        arguments: &[Expression],
+        env: &mut Environment,
+    ) -> Result<Object> {
+        let function = self.eval_expression(function, env)?;
+
+        let Object::Function {
+            parameters,
+            body,
+            env: function_env,
+        } = function
+        else {
+            return Err(EvalError::NotAFunction {
+                function: function.object_type(),
+            });
+        };
+
+        let arguments = arguments
+            .iter()
+            .map(|a| self.eval_expression(a, env))
+            .collect::<Result<Vec<Object>>>()?;
+
+        if parameters.len() != arguments.len() {
+            return Err(EvalError::InvalidArgumentCount {
+                expected: parameters.len(),
+                got: arguments.len(),
+            });
+        }
+
+        let new_bindings: HashMap<String, Object> = parameters.into_iter().zip(arguments).collect();
+        let mut extended_env = function_env.extended_with(new_bindings);
+
+        self.eval_expression(&body, &mut extended_env)
     }
 
     fn eval_identifier(&self, name: &str, env: &Environment) -> Result<Object> {
@@ -320,6 +380,57 @@ mod tests {
                 "let a = 5; let b = a; let c = a + b + 5; c;",
                 Object::Integer(15),
             ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 1; }";
+        let evaluated = test_eval(input);
+
+        let Object::Function {
+            parameters, body, ..
+        } = evaluated
+        else {
+            panic!("object is not a function, got {evaluated:?}");
+        };
+
+        let expected_parameters = vec!["x".to_string()];
+        assert_eq!(parameters, expected_parameters);
+
+        let expected_body = "(x + 1)";
+        assert_eq!(body.to_string(), expected_body);
+    }
+
+    #[test]
+    fn test_function_application() {
+        let tests = vec![
+            (
+                "let identity = fn(x) { x; }; identity(5);",
+                Object::Integer(5),
+            ),
+            (
+                "let identity = fn(x) { return x; }; identity(5);",
+                Object::Integer(5),
+            ),
+            (
+                "let double = fn(x) { x * 2; }; double(5);",
+                Object::Integer(10),
+            ),
+            (
+                "let add = fn(x, y) { x + y; }; add(5, 5);",
+                Object::Integer(10),
+            ),
+            (
+                "let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));",
+                Object::Integer(20),
+            ),
+            ("fn(x) { x; }(5);", Object::Integer(5)),
         ];
 
         for (input, expected) in tests {
