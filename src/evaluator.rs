@@ -457,11 +457,35 @@ mod tests {
                 "unsupported infix operator: Boolean + Boolean",
             ),
             ("foobar", "identifier not found: foobar"),
+            ("-true", "expected type Integer, got Boolean instead"),
+            (
+                r#"
+                    let add = fn(x, y) { x + y };
+                    add(1);
+                "#,
+                "expected 2 arguments, got 1 instead",
+            ),
+            ("let a = 1; a();", "not a function: Integer"),
+            ("1 / 0;", "division by zero"),
         ];
 
         for (input, expected) in tests {
             test_error_object(input, expected);
         }
+    }
+
+    #[test]
+    fn test_closure() {
+        let input = "
+            let newAdder = fn(x) {
+                fn(y) { x + y };
+            };
+            let addTwo = newAdder(2);
+            addTwo(2);
+        ";
+
+        let evaluated = test_eval(input);
+        test_object(evaluated, Object::Integer(4));
     }
 
     fn test_object(object: Object, expected: Object) {
