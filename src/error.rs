@@ -3,12 +3,6 @@ use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
 
 #[derive(Debug, PartialEq)]
-pub enum ProgramError {
-    Parse,
-    Eval(EvalError),
-}
-
-#[derive(Debug, PartialEq)]
 pub enum ParseError<'a> {
     UnexpectedToken {
         found: Token<'a>,

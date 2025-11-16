@@ -1,7 +1,6 @@
+use crate::ast::Program;
 use crate::environment::Environment;
 use crate::evaluator::Evaluator;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
 use std::io;
 use std::io::Write;
 
@@ -25,17 +24,14 @@ impl Repl {
                 break;
             }
 
-            let lexer = Lexer::new(&line);
-            let mut parser = Parser::new(lexer);
-            let program = parser.parse_program();
+            let Ok(program) = Program::from_str(&line) else {
+                line.clear();
+                continue;
+            };
 
-            if parser.has_errors() {
-                parser.print_errors();
-            } else {
-                match evaluator.eval(&program.into(), &mut env) {
-                    Ok(evaluated) => writeln!(output, "{evaluated}")?,
-                    Err(error) => writeln!(output, "Error: {error}")?,
-                }
+            match evaluator.eval(&program, &mut env) {
+                Ok(evaluated) => writeln!(output, "{evaluated}")?,
+                Err(error) => writeln!(output, "Error: {error}")?,
             }
 
             line.clear();

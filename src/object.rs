@@ -32,10 +32,6 @@ pub trait ObjectTrait {
 }
 
 impl Object {
-    pub fn is_null(&self) -> bool {
-        matches!(self, Object::Null)
-    }
-
     pub fn is_return_value(&self) -> bool {
         matches!(self, Object::ReturnValue(_))
     }

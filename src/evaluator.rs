@@ -1,4 +1,3 @@
-use crate::ast::Node;
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Environment;
 use crate::error::EvalError;
@@ -12,12 +11,8 @@ impl Evaluator {
         Self
     }
 
-    pub fn eval(&self, node: &Node, env: &mut Environment) -> Result<Object> {
-        match node {
-            Node::Expression(expr) => self.eval_expression(expr, env),
-            Node::Statement(stmt) => self.eval_statement(stmt, env),
-            Node::Program(prog) => self.eval_program(prog, env),
-        }
+    pub fn eval(&self, program: &Program, env: &mut Environment) -> Result<Object> {
+        self.eval_program(program, env)
     }
 
     fn eval_expression(&self, expr: &Expression, env: &mut Environment) -> Result<Object> {
@@ -519,7 +514,7 @@ mod tests {
         let evaluator = Evaluator::new();
         let mut env = Environment::new();
 
-        match evaluator.eval(&Node::Program(program), &mut env) {
+        match evaluator.eval(&program, &mut env) {
             Ok(_) => panic!("expected error but got no error"),
             Err(error) => assert_eq!(error.to_string(), expected),
         }
@@ -531,7 +526,7 @@ mod tests {
         let mut env = Environment::new();
 
         evaluator
-            .eval(&program.into(), &mut env)
+            .eval(&program, &mut env)
             .expect("evaluation failed")
     }
 }
