@@ -1,5 +1,5 @@
 use crate::ast::Program;
-use crate::environment::Environment;
+use crate::environment::Env;
 use crate::evaluator::Evaluator;
 use std::io;
 use std::io::Write;
@@ -13,7 +13,7 @@ impl Repl {
         let mut line = String::new();
 
         let evaluator = Evaluator::new();
-        let mut env = Environment::new();
+        let env = Env::new();
 
         loop {
             write!(output, ">> ")?;
@@ -29,9 +29,9 @@ impl Repl {
                 continue;
             };
 
-            match evaluator.eval(&program, &mut env) {
+            match evaluator.eval(&program, env.clone()) {
                 Ok(evaluated) => writeln!(output, "{evaluated}")?,
-                Err(error) => writeln!(output, "Error: {error}")?,
+                Err(error) => writeln!(output, "ERROR: {error}")?,
             }
 
             line.clear();

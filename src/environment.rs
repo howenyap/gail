@@ -1,34 +1,58 @@
 use crate::object::Object;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
-#[derive(Debug, Clone)]
-pub struct Environment {
-    bindings: HashMap<String, Object>,
-    outer: Option<Box<Environment>>,
+#[derive(Clone, Debug)]
+pub struct Env {
+    frame: Rc<Frame>,
 }
 
-impl Environment {
+#[derive(Debug)]
+struct Frame {
+    bindings: RefCell<HashMap<String, Object>>,
+    outer: Option<Env>,
+}
+
+impl Frame {
+    pub fn new(outer: Option<Env>) -> Self {
+        Self {
+            bindings: RefCell::new(HashMap::new()),
+            outer,
+        }
+    }
+}
+
+impl Env {
     pub fn new() -> Self {
+        let frame = Frame::new(None);
         Self {
-            bindings: HashMap::new(),
-            outer: None,
+            frame: Rc::new(frame),
         }
     }
 
-    pub fn extended_with(self, new_bindings: HashMap<String, Object>) -> Self {
-        Self {
-            bindings: new_bindings,
-            outer: Some(Box::new(self)),
+    pub fn set(&self, name: &str, value: Object) {
+        self.frame
+            .bindings
+            .borrow_mut()
+            .insert(name.to_string(), value);
+    }
+
+    pub fn extend(&self, bindings: HashMap<String, Object>) -> Self {
+        let frame = Frame::new(Some(self.clone()));
+        let inner = Self {
+            frame: Rc::new(frame),
+        };
+
+        inner.frame.bindings.borrow_mut().extend(bindings);
+        inner
+    }
+
+    pub fn get(&self, name: &str) -> Option<Object> {
+        if let Some(v) = self.frame.bindings.borrow().get(name) {
+            Some(v.clone())
+        } else {
+            self.frame.outer.as_ref().and_then(|outer| outer.get(name))
         }
-    }
-
-    pub fn get(&self, name: &str) -> Option<&Object> {
-        self.bindings
-            .get(name)
-            .or_else(|| self.outer.as_ref().and_then(|outer| outer.get(name)))
-    }
-
-    pub fn set(&mut self, name: String, value: Object) {
-        self.bindings.insert(name.to_string(), value);
     }
 }

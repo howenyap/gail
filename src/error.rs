@@ -39,10 +39,6 @@ impl<'a> Display for ParseError<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum EvalError {
-    UnexpectedType {
-        found: ObjectType,
-        expected: ObjectType,
-    },
     UnsupportedInfixOperator {
         left: ObjectType,
         right: ObjectType,
@@ -68,9 +64,6 @@ pub enum EvalError {
 impl Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EvalError::UnexpectedType { found, expected } => {
-                write!(f, "expected type {expected:?}, got {found:?} instead")
-            }
             EvalError::UnsupportedInfixOperator {
                 left,
                 right,

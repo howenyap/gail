@@ -1,7 +1,7 @@
 use std::fmt::{self, Debug, Display};
 
 use crate::ast::Expression;
-use crate::environment::Environment;
+use crate::environment::Env;
 use crate::error::EvalError;
 
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub enum Object {
     Function {
         parameters: Vec<String>,
         body: Box<Expression>,
-        env: Environment,
+        env: Env,
     },
 }
 
@@ -194,9 +194,9 @@ impl Object {
         let evaluated = match self {
             Object::Integer(value) => Object::Integer(-value),
             _ => {
-                return Err(EvalError::UnexpectedType {
-                    found: self.object_type(),
-                    expected: ObjectType::Integer,
+                return Err(EvalError::UnsupportedPrefixOperator {
+                    right: self.object_type(),
+                    operator: "-".to_string(),
                 });
             }
         };
