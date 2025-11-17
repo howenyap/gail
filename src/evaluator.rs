@@ -1,7 +1,7 @@
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::error::EvalError;
-use crate::object::{Object, ObjectTrait};
+use crate::object::{FunctionType, Object, ObjectTrait, ObjectType};
 
 pub struct Evaluator;
 
@@ -171,6 +171,10 @@ impl Evaluator {
     ) -> Result<Object> {
         let function = self.eval_expression(function, env.clone())?;
 
+        if let Object::BuiltinFunction(function_type) = function {
+            return self.eval_builtin_function(&function_type, arguments, env.clone());
+        }
+
         let Object::Function {
             parameters,
             body,
@@ -205,9 +209,47 @@ impl Evaluator {
     }
 
     fn eval_identifier(&self, name: &str, env: Env) -> Result<Object> {
-        env.get(name).ok_or_else(|| EvalError::IdentifierNotFound {
-            name: name.to_string(),
-        })
+        if let Some(value) = env.get(name) {
+            return Ok(value);
+        }
+
+        match name {
+            "len" => Ok(Object::BuiltinFunction(FunctionType::Len)),
+            _ => Err(EvalError::IdentifierNotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn eval_builtin_function(
+        &self,
+        function_type: &FunctionType,
+        arguments: &[Expression],
+        env: Env,
+    ) -> Result<Object> {
+        match function_type {
+            FunctionType::Len => {
+                let [argument] = arguments else {
+                    return Err(EvalError::InvalidArgumentCount {
+                        expected: 1,
+                        got: arguments.len(),
+                    });
+                };
+
+                let argument = self.eval_expression(argument, env)?;
+
+                let Object::String(value) = argument else {
+                    return Err(EvalError::InvalidArgumentType {
+                        expected: ObjectType::String,
+                        got: argument.object_type(),
+                    });
+                };
+
+                let length = value.len() as i64;
+
+                Ok(Object::Integer(length))
+            }
+        }
     }
 
     fn eval_return_statement(&self, value: &Expression, env: Env) -> Result<Object> {
@@ -230,7 +272,7 @@ impl Evaluator {
             });
         };
 
-        env.set(&name, value);
+        env.set(name, value);
 
         Ok(Object::Null)
     }
@@ -488,6 +530,11 @@ mod tests {
             ),
             ("let a = 1; a();", "not a function: Integer"),
             ("1 / 0;", "division by zero"),
+            ("len(1)", "expected String, got Integer instead"),
+            (
+                "len(\"hello\", \"world\")",
+                "expected 1 argument, got 2 instead",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -507,6 +554,20 @@ mod tests {
 
         let evaluated = test_eval(input);
         test_object(evaluated, Object::Integer(4));
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        let tests = vec![
+            ("len(\"\")", Object::Integer(0)),
+            ("len(\"four\")", Object::Integer(4)),
+            ("len(\"hello world\")", Object::Integer(11)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_object(evaluated, expected);
+        }
     }
 
     fn test_object(object: Object, expected: Object) {

@@ -16,6 +16,12 @@ pub enum Object {
         body: Box<Expression>,
         env: Env,
     },
+    BuiltinFunction(FunctionType),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunctionType {
+    Len,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -26,6 +32,7 @@ pub enum ObjectType {
     Null,
     ReturnValue,
     Function,
+    BuiltinFunction,
 }
 
 pub trait ObjectTrait {
@@ -222,6 +229,7 @@ impl ObjectTrait for Object {
             Object::Null => ObjectType::Null,
             Object::ReturnValue(_) => ObjectType::ReturnValue,
             Object::Function { .. } => ObjectType::Function,
+            Object::BuiltinFunction { .. } => ObjectType::BuiltinFunction,
         }
     }
 
@@ -243,6 +251,7 @@ impl ObjectTrait for Object {
 
                 format!("fn({params}) {{\n{body}\n}}")
             }
+            Object::BuiltinFunction(function_type) => function_type.to_string(),
         }
     }
 }
@@ -250,5 +259,15 @@ impl ObjectTrait for Object {
 impl Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inspect())
+    }
+}
+
+impl Display for FunctionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            FunctionType::Len => "len",
+        };
+
+        write!(f, "builtin function: {name}")
     }
 }

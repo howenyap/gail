@@ -59,6 +59,10 @@ pub enum EvalError {
         expected: usize,
         got: usize,
     },
+    InvalidArgumentType {
+        expected: ObjectType,
+        got: ObjectType,
+    },
 }
 
 impl Display for EvalError {
@@ -81,7 +85,16 @@ impl Display for EvalError {
             EvalError::NotAFunction { function } => write!(f, "not a function: {function:?}"),
             EvalError::IdentifierNotFound { name } => write!(f, "identifier not found: {name}"),
             EvalError::InvalidArgumentCount { expected, got } => {
-                write!(f, "expected {expected} arguments, got {got} instead")
+                let arg = if *expected == 1 {
+                    "argument"
+                } else {
+                    "arguments"
+                };
+
+                write!(f, "expected {expected} {arg}, got {got} instead")
+            }
+            EvalError::InvalidArgumentType { expected, got } => {
+                write!(f, "expected {expected:?}, got {got:?} instead")
             }
         }
     }
