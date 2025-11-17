@@ -28,6 +28,10 @@ impl<'a> Lexer<'a> {
             return Token::eof();
         }
 
+        if self.is_quote() {
+            return self.read_string();
+        }
+
         if self.is_symbol() {
             match (self.curr_char(), self.peek_char()) {
                 (Some(b'='), Some(b'=')) => {
@@ -68,6 +72,25 @@ impl<'a> Lexer<'a> {
         } else {
             None
         }
+    }
+
+    fn read_string(&mut self) -> Token<'a> {
+        let start = self.position;
+
+        loop {
+            if self.is_eof() {
+                return Token::illegal();
+            }
+
+            self.read_char();
+
+            if self.is_quote() {
+                self.read_char();
+                break;
+            }
+        }
+
+        Token::from_string(&self.input[start..self.position])
     }
 
     fn curr_char(&self) -> Option<&u8> {
@@ -119,12 +142,17 @@ impl<'a> Lexer<'a> {
                     | b'}'
                     | b','
                     | b';'
+                    | b'"'
             )
         )
     }
 
     fn is_letter(&self) -> bool {
         matches!(self.curr_char(), Some(ch) if ch.is_ascii_alphabetic() || *ch == b'_')
+    }
+
+    fn is_quote(&self) -> bool {
+        matches!(self.curr_char(), Some(ch) if *ch == b'"')
     }
 
     fn is_eof(&self) -> bool {
@@ -175,6 +203,8 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
+"foobar";
+"foo bar";
 "#;
 
         let mut lexer = Lexer::new(input);
@@ -251,6 +281,10 @@ if (5 < 10) {
             (Int, "10"),
             (NotEqual, "!="),
             (Int, "9"),
+            (Semicolon, ";"),
+            (String, "foobar"),
+            (Semicolon, ";"),
+            (String, "foo bar"),
             (Semicolon, ";"),
             (Eof, ""),
         ];

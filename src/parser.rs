@@ -83,6 +83,7 @@ impl<'a> Parser<'a> {
         match self.curr_token_type() {
             Ident => Ok(self.parse_identifier()),
             Int => self.parse_integer_literal(),
+            String => Ok(self.parse_string_literal()),
             True | False => Ok(self.parse_boolean()),
             Bang | Minus => self.parse_prefix_expression(),
             Lparen => self.parse_grouped_expression(),
@@ -242,9 +243,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_boolean(&mut self) -> Expression {
-        let value = self.curr_token_is(TokenType::True);
+        Expression::bool(&self.current_token)
+    }
 
-        Expression::bool(value)
+    fn parse_string_literal(&mut self) -> Expression {
+        Expression::string(&self.current_token)
     }
 
     fn parse_let_statement(&mut self) -> Result<Statement, ParseError<'a>> {
@@ -356,7 +359,7 @@ mod tests {
         let tests = vec![
             ("let x = 5;", "x", Int(5)),
             ("let y = true;", "y", Bool(true)),
-            ("let foobar = y", "foobar", String("y")),
+            ("let foobar = y", "foobar", Ident("y")),
         ];
 
         for (input, expected_identifier, expected_value) in tests {
@@ -379,7 +382,7 @@ mod tests {
         let tests = vec![
             ("return 5", Int(5)),
             ("return false", Bool(false)),
-            ("return x", String("x")),
+            ("return x", Ident("x")),
         ];
 
         for (input, expected_value) in tests {
@@ -415,7 +418,7 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         let expression = expect_expression(&statements[0]);
-        test_literal_expression(expression, ExpectedLiteral::String("foobar"));
+        test_literal_expression(expression, ExpectedLiteral::Ident("foobar"));
     }
 
     #[test]
@@ -427,6 +430,17 @@ mod tests {
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, ExpectedLiteral::Int(5));
+    }
+
+    #[test]
+    fn test_string_literal_expression() {
+        let input = "\"fast, reliable, productive.\";";
+        let program = build_program(input);
+        let statements = program.statements();
+        assert_eq!(statements.len(), 1);
+
+        let expression = expect_expression(&statements[0]);
+        test_literal_expression(expression, ExpectedLiteral::String("fast, reliable, productive."));
     }
 
     #[test]
@@ -546,13 +560,13 @@ mod tests {
         };
 
         use ExpectedLiteral::*;
-        test_infix_expression(condition, String("x"), "<", String("y"));
+        test_infix_expression(condition, Ident("x"), "<", Ident("y"));
 
         let statements = expect_block_expression(consequence);
         assert_eq!(statements.len(), 1);
 
         let expression = expect_expression(&statements[0]);
-        test_literal_expression(expression, String("x"));
+        test_literal_expression(expression, Ident("x"));
 
         assert!(alternative.is_none());
     }
@@ -576,13 +590,13 @@ mod tests {
         };
 
         use ExpectedLiteral::*;
-        test_infix_expression(condition, String("x"), "<", String("y"));
+        test_infix_expression(condition, Ident("x"), "<", Ident("y"));
 
         let consequence = consequence.as_ref();
         let consequence_statements = expect_block_expression(consequence);
         assert_eq!(consequence_statements.len(), 1);
         let consequence_expression = expect_expression(&consequence_statements[0]);
-        test_literal_expression(consequence_expression, String("x"));
+        test_literal_expression(consequence_expression, Ident("x"));
 
         let Some(alternative) = alternative.as_ref() else {
             panic!("expected alternative block, got None");
@@ -591,7 +605,7 @@ mod tests {
         let alternative_statements = expect_block_expression(alternative);
         assert_eq!(alternative_statements.len(), 1);
         let alternative_expression = expect_expression(&alternative_statements[0]);
-        test_literal_expression(alternative_expression, String("y"));
+        test_literal_expression(alternative_expression, Ident("y"));
     }
 
     #[test]
@@ -613,13 +627,13 @@ mod tests {
         use ExpectedLiteral::*;
 
         assert_eq!(parameters.len(), 2);
-        test_literal_expression(&parameters[0], String("x"));
-        test_literal_expression(&parameters[1], String("y"));
+        test_literal_expression(&parameters[0], Ident("x"));
+        test_literal_expression(&parameters[1], Ident("y"));
 
         let body_statements = expect_block_expression(body);
         assert_eq!(body_statements.len(), 1);
         let body_expression = expect_expression(&body_statements[0]);
-        test_infix_expression(body_expression, String("x"), "+", String("y"));
+        test_infix_expression(body_expression, Ident("x"), "+", Ident("y"));
     }
 
     #[test]
@@ -644,7 +658,7 @@ mod tests {
             assert_eq!(parameters.len(), expected.len());
 
             for i in 0..expected.len() {
-                test_literal_expression(&parameters[i], ExpectedLiteral::String(expected[i]));
+                test_literal_expression(&parameters[i], ExpectedLiteral::Ident(expected[i]));
             }
         }
     }
@@ -668,7 +682,7 @@ mod tests {
         };
 
         use ExpectedLiteral::*;
-        test_literal_expression(function, String("add"));
+        test_literal_expression(function, Ident("add"));
         assert_eq!(arguments.len(), 3);
 
         test_literal_expression(&arguments[0], ExpectedLiteral::Int(1));
@@ -687,15 +701,17 @@ mod tests {
 
     enum ExpectedLiteral {
         Int(i64),
-        String(&'static str),
+        Ident(&'static str),
         Bool(bool),
+        String(&'static str),
     }
 
     fn test_literal_expression(expression: &Expression, expected: ExpectedLiteral) {
         match expected {
             ExpectedLiteral::Int(v) => test_integer_literal(expression, v),
-            ExpectedLiteral::String(s) => test_identifier(expression, s),
+            ExpectedLiteral::Ident(s) => test_identifier(expression, s),
             ExpectedLiteral::Bool(b) => test_boolean_expression(expression, b),
+            ExpectedLiteral::String(s) => test_string_literal(expression, s),
         }
     }
 
@@ -708,6 +724,14 @@ mod tests {
         };
 
         assert_eq!(*expr_value, value);
+    }
+
+    fn test_string_literal(expression: &Expression, value: &str) {
+        let Expression::String { value: expr_value } = expression else {
+            panic!("expected string expression, got {expression:#?}");
+        };
+
+        assert_eq!(expr_value, value);
     }
 
     fn test_identifier(expression: &Expression, value: &str) {

@@ -8,6 +8,7 @@ pub enum TokenType {
     Eof,
     Ident,
     Int,
+    String,
 
     // Operators
     Assign,
@@ -99,6 +100,13 @@ impl Token<'_> {
         }
     }
 
+    pub fn from_string(string: &str) -> Token {
+        Token {
+            token_type: String,
+            literal: string.trim_matches('"'),
+        }
+    }
+
     pub fn is_eof(&self) -> bool {
         self.token_type == Eof
     }
@@ -169,6 +177,6 @@ implement_create_token! {
 
 impl<'a> Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.token_type())
+        write!(f, "{}", self.literal())
     }
 }

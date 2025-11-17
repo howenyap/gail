@@ -8,6 +8,7 @@ use crate::error::EvalError;
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    String(String),
     Null,
     ReturnValue(Box<Object>),
     Function {
@@ -21,6 +22,7 @@ pub enum Object {
 pub enum ObjectType {
     Integer,
     Boolean,
+    String,
     Null,
     ReturnValue,
     Function,
@@ -210,6 +212,7 @@ impl ObjectTrait for Object {
         match self {
             Object::Integer(_) => ObjectType::Integer,
             Object::Boolean(_) => ObjectType::Boolean,
+            Object::String(_) => ObjectType::String,
             Object::Null => ObjectType::Null,
             Object::ReturnValue(_) => ObjectType::ReturnValue,
             Object::Function { .. } => ObjectType::Function,
@@ -220,6 +223,7 @@ impl ObjectTrait for Object {
         match self {
             Object::Integer(value) => value.to_string(),
             Object::Boolean(value) => value.to_string(),
+            Object::String(value) => value.to_string(),
             Object::Null => "null".to_string(),
             Object::ReturnValue(value) => value.inspect(),
             Object::Function {

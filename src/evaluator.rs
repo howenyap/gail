@@ -18,6 +18,7 @@ impl Evaluator {
         let evaluated = match expr {
             Expression::Int { value, .. } => Object::Integer(*value),
             Expression::Bool { value, .. } => Object::Boolean(*value),
+            Expression::String { value, .. } => Object::String(value.clone()),
             Expression::Prefix {
                 operator, right, ..
             } => self.eval_prefix_expression(operator, right, env)?,

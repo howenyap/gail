@@ -14,6 +14,9 @@ pub enum Expression {
     Bool {
         value: bool,
     },
+    String {
+        value: String,
+    },
     If {
         condition: Box<Expression>,
         // invariant: expression must be Block
@@ -49,7 +52,7 @@ pub enum Expression {
 impl Expression {
     pub fn ident(token: &Token) -> Self {
         Self::Ident {
-            value: token.literal().to_string(),
+            value: token.to_string(),
         }
     }
 
@@ -57,13 +60,21 @@ impl Expression {
         Self::Int { value }
     }
 
-    pub fn bool(value: bool) -> Self {
-        Self::Bool { value }
+    pub fn bool(value: &Token) -> Self {
+        Self::Bool {
+            value: value.to_string() == "true",
+        }
+    }
+
+    pub fn string(token: &Token) -> Self {
+        Self::String {
+            value: token.to_string(),
+        }
     }
 
     pub fn prefix(token: &Token, right: Expression) -> Self {
         Self::Prefix {
-            operator: token.literal().to_string(),
+            operator: token.to_string(),
             right: Box::new(right),
         }
     }
@@ -83,7 +94,7 @@ impl Expression {
     pub fn infix(token: &Token, left: Expression, right: Expression) -> Self {
         Self::Infix {
             left: Box::new(left),
-            operator: token.literal().to_string(),
+            operator: token.to_string(),
             right: Box::new(right),
         }
     }
@@ -113,6 +124,7 @@ impl Display for Expression {
             Self::Ident { value } => write!(f, "{value}"),
             Self::Int { value } => write!(f, "{value}"),
             Self::Bool { value } => write!(f, "{value}"),
+            Self::String { value } => write!(f, "{value}"),
             Self::Prefix { operator, right } => write!(f, "({operator}{right})"),
             Self::Infix {
                 left,
