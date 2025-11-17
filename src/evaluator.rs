@@ -293,6 +293,23 @@ mod tests {
     }
 
     #[test]
+    fn test_eval_string_expression() {
+        let tests = vec![
+            ("\"rust\"", "rust"),
+            (
+                "\"writing \" + \"an \" + \"interpreter\"",
+                "writing an interpreter",
+            ),
+            ("3 * \"hi\"", "hihihi"),
+        ];
+
+        for (input, expected) in tests.iter() {
+            let evaluated = test_eval(input);
+            test_string_object(evaluated, expected);
+        }
+    }
+
+    #[test]
     fn test_bang_operator() {
         let tests = vec![
             ("!true", false),
@@ -513,6 +530,14 @@ mod tests {
     fn test_boolean_object(object: Object, expected: bool) {
         let Object::Boolean(value) = object else {
             panic!("object is not a boolean, got {object:?}");
+        };
+
+        assert_eq!(value, expected);
+    }
+
+    fn test_string_object(object: Object, expected: &str) {
+        let Object::String(value) = object else {
+            panic!("object is not a string, got {object:?}");
         };
 
         assert_eq!(value, expected);

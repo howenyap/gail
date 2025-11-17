@@ -57,6 +57,7 @@ impl Object {
     pub fn add(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left + right),
+            (Object::String(left), Object::String(right)) => Object::String(left + &right),
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
@@ -87,6 +88,9 @@ impl Object {
     pub fn multiply(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left * right),
+            (Object::Integer(left), Object::String(right)) => {
+                Object::String(right.repeat(left as usize))
+            }
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
@@ -154,6 +158,7 @@ impl Object {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left == right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left == right),
+            (Object::String(left), Object::String(right)) => Object::Boolean(left == right),
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
@@ -170,6 +175,7 @@ impl Object {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left != right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left != right),
+            (Object::String(left), Object::String(right)) => Object::Boolean(left != right),
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
