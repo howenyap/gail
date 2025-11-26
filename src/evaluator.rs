@@ -356,7 +356,7 @@ impl Evaluator {
                     FunctionType::First => array.first().ok_or(EvalError::EmptyArray).cloned(),
                     FunctionType::Last => array.last().ok_or(EvalError::EmptyArray).cloned(),
                     FunctionType::Rest => {
-                        if array.len() < 2 {
+                        if array.is_empty() {
                             Err(EvalError::EmptyArray)
                         } else {
                             Ok(Object::Array(array[1..].to_vec()))
@@ -736,7 +736,6 @@ mod tests {
             ("first([])", "empty array"),
             ("last([])", "empty array"),
             ("rest([])", "empty array"),
-            ("rest([1])", "empty array"),
             (
                 "slice([1], 0, 2)",
                 "invalid range: range must be between 0..1, got 0..2 instead",
@@ -781,6 +780,7 @@ mod tests {
                 "rest([1, 2, 3])",
                 Object::Array(vec![Object::Integer(2), Object::Integer(3)]),
             ),
+            ("rest([1])", Object::Array(vec![])),
             ("slice([1, 2, 3], 0, 0)", Object::Array(vec![])),
             (
                 "slice([1, 2, 3], 0, 1)",
