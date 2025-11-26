@@ -149,7 +149,6 @@ impl<'a> Parser<'a> {
         self.next_token();
 
         if self.curr_token_is(TokenType::Rbracket) {
-            self.next_token();
             return Ok(Expression::array(elements));
         }
 
@@ -406,13 +405,13 @@ mod tests {
         for (input, expected_identifier, expected_value) in tests {
             let program = build_program(input);
             let statements = program.statements();
-            assert_eq!(statements.len(), 1);
+            assert_eq!(1, statements.len());
 
             let Statement::Let { name, value, .. } = &statements[0] else {
                 panic!("expected let statement, got {:#?}", statements[0]);
             };
 
-            assert_eq!(name.to_string(), expected_identifier);
+            assert_eq!(expected_identifier, name.to_string());
             test_literal_expression(value, expected_value);
         }
     }
@@ -429,7 +428,7 @@ mod tests {
         for (input, expected_value) in tests {
             let program = build_program(input);
             let statements = program.statements();
-            assert_eq!(statements.len(), 1);
+            assert_eq!(1, statements.len());
 
             let Statement::Return { value } = &statements[0] else {
                 panic!("expected return statement, got {:#?}", statements[0]);
@@ -447,7 +446,7 @@ mod tests {
             Statement::r#let(Expression::ident(&my_var), Expression::ident(&another_var));
         let program = Program::new(vec![statement]);
 
-        assert_eq!(program.to_string(), "let myVar = anotherVar;");
+        assert_eq!("let myVar = anotherVar;", program.to_string());
     }
 
     #[test]
@@ -456,7 +455,7 @@ mod tests {
         let program = build_program(input);
 
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, ExpectedLiteral::Ident("foobar"));
@@ -467,7 +466,7 @@ mod tests {
         let input = "5;";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, ExpectedLiteral::Int(5));
@@ -478,7 +477,7 @@ mod tests {
         let input = "\"fast, reliable, productive.\";";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(
@@ -500,21 +499,21 @@ mod tests {
         for (input, operator, expected) in tests {
             let program = build_program(input);
             let statements = program.statements();
-            assert_eq!(statements.len(), 1);
+            assert_eq!(1, statements.len());
 
             let expression = expect_expression(&statements[0]);
 
             let Expression::Prefix {
-                operator: op,
-                right,
+                operator: received_op,
+                right: received_right,
                 ..
             } = expression
             else {
                 panic!("expected prefix expression, got {expression:#?}");
             };
 
-            assert_eq!(*op, operator);
-            test_literal_expression(right, expected);
+            assert_eq!(operator, *received_op);
+            test_literal_expression(received_right, expected);
         }
     }
 
@@ -534,7 +533,7 @@ mod tests {
         for (input, left, operator, right) in tests {
             let program = build_program(input);
             let statements = program.statements();
-            assert_eq!(statements.len(), 1);
+            assert_eq!(1, statements.len());
 
             let expression = expect_expression(&statements[0]);
             test_infix_expression(expression, left, operator, right);
@@ -589,7 +588,7 @@ mod tests {
 
         for (input, expected) in tests {
             let program = build_program(input);
-            assert_eq!(program.to_string(), expected);
+            assert_eq!(expected, program.to_string());
         }
     }
 
@@ -598,7 +597,7 @@ mod tests {
         let input = "if (x < y) { x }";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         let Expression::If {
@@ -615,7 +614,7 @@ mod tests {
         test_infix_expression(condition, Ident("x"), "<", Ident("y"));
 
         let statements = expect_block_expression(consequence);
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(expression, Ident("x"));
@@ -628,7 +627,7 @@ mod tests {
         let input = "if (x < y) { x } else { y }";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
         let Expression::If {
@@ -646,7 +645,7 @@ mod tests {
 
         let consequence = consequence.as_ref();
         let consequence_statements = expect_block_expression(consequence);
-        assert_eq!(consequence_statements.len(), 1);
+        assert_eq!(1, consequence_statements.len());
         let consequence_expression = expect_expression(&consequence_statements[0]);
         test_literal_expression(consequence_expression, Ident("x"));
 
@@ -655,7 +654,7 @@ mod tests {
         };
 
         let alternative_statements = expect_block_expression(alternative);
-        assert_eq!(alternative_statements.len(), 1);
+        assert_eq!(1, alternative_statements.len());
         let alternative_expression = expect_expression(&alternative_statements[0]);
         test_literal_expression(alternative_expression, Ident("y"));
     }
@@ -665,7 +664,7 @@ mod tests {
         let input = "fn(x, y) {x + y; }";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let statement = expect_expression(&statements[0]);
 
@@ -678,12 +677,12 @@ mod tests {
 
         use ExpectedLiteral::*;
 
-        assert_eq!(parameters.len(), 2);
+        assert_eq!(2, parameters.len());
         test_literal_expression(&parameters[0], Ident("x"));
         test_literal_expression(&parameters[1], Ident("y"));
 
         let body_statements = expect_block_expression(body);
-        assert_eq!(body_statements.len(), 1);
+        assert_eq!(1, body_statements.len());
         let body_expression = expect_expression(&body_statements[0]);
         test_infix_expression(body_expression, Ident("x"), "+", Ident("y"));
     }
@@ -724,12 +723,21 @@ mod tests {
         assert_eq!(1, statements.len());
 
         let statement = expect_expression(&statements[0]);
-        let Expression::Index { left, index } = statement else {
+        let Expression::Index {
+            left: received_left,
+            index: received_index,
+        } = statement
+        else {
             panic!("expected index expression, got {statement:#}");
         };
 
-        test_identifier(left, "myArray");
-        test_infix_expression(index, ExpectedLiteral::Int(1), "+", ExpectedLiteral::Int(1));
+        test_identifier(received_left, "myArray");
+        test_infix_expression(
+            received_index,
+            ExpectedLiteral::Int(1),
+            "+",
+            ExpectedLiteral::Int(1),
+        );
     }
 
     #[test]
@@ -743,7 +751,7 @@ mod tests {
         for (input, expected) in tests {
             let program = build_program(input);
             let statements = program.statements();
-            assert_eq!(statements.len(), 1);
+            assert_eq!(1, statements.len());
 
             let statement = expect_expression(&program.statements()[0]);
 
@@ -751,7 +759,7 @@ mod tests {
                 panic!("expected function expression, got {statement:#}");
             };
 
-            assert_eq!(parameters.len(), expected.len());
+            assert_eq!(expected.len(), parameters.len());
 
             for i in 0..expected.len() {
                 test_literal_expression(&parameters[i], ExpectedLiteral::Ident(expected[i]));
@@ -764,7 +772,7 @@ mod tests {
         let input = "add(1, 2 * 3, 4 + 5)";
         let program = build_program(input);
         let statements = program.statements();
-        assert_eq!(statements.len(), 1);
+        assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
 
@@ -779,7 +787,7 @@ mod tests {
 
         use ExpectedLiteral::*;
         test_literal_expression(function, Ident("add"));
-        assert_eq!(arguments.len(), 3);
+        assert_eq!(3, arguments.len());
 
         test_literal_expression(&arguments[0], ExpectedLiteral::Int(1));
         test_infix_expression(&arguments[1], Int(2), "*", Int(3));
@@ -819,7 +827,7 @@ mod tests {
             panic!("expected integer expression, got {expression:#?}");
         };
 
-        assert_eq!(*expr_value, value);
+        assert_eq!(value, *expr_value);
     }
 
     fn test_string_literal(expression: &Expression, value: &str) {
@@ -827,7 +835,7 @@ mod tests {
             panic!("expected string expression, got {expression:#?}");
         };
 
-        assert_eq!(expr_value, value);
+        assert_eq!(value, expr_value);
     }
 
     fn test_identifier(expression: &Expression, value: &str) {
@@ -835,7 +843,7 @@ mod tests {
             panic!("expected identifier expression, got {expression:#?}");
         };
 
-        assert_eq!(ident_value, &value);
+        assert_eq!(&value, ident_value);
     }
 
     fn test_boolean_expression(expression: &Expression, value: bool) {
@@ -846,28 +854,28 @@ mod tests {
             panic!("expected boolean expression, got {expression:#?}");
         };
 
-        assert_eq!(*expr_value, value);
+        assert_eq!(value, *expr_value);
     }
 
     fn test_infix_expression(
         expression: &Expression,
-        left: ExpectedLiteral,
+        expected_left: ExpectedLiteral,
         operator: &str,
-        right: ExpectedLiteral,
+        expected_right: ExpectedLiteral,
     ) {
         let Expression::Infix {
-            left: infix_left,
-            operator: infix_op,
-            right: infix_right,
+            left: received_left,
+            operator: received_op,
+            right: received_right,
             ..
         } = expression
         else {
             panic!("expected infix expression, got {expression:#?}");
         };
 
-        test_literal_expression(infix_left, left);
-        assert_eq!(infix_op, &operator);
-        test_literal_expression(infix_right, right);
+        test_literal_expression(received_left, expected_left);
+        assert_eq!(&operator, received_op);
+        test_literal_expression(received_right, expected_right);
     }
 
     fn expect_block_expression(expression: &Expression) -> &[Statement] {

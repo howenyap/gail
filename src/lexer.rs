@@ -275,8 +275,8 @@ if (5 < 10) {
         for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
             let token = lexer.next_token();
             eprintln!("token {i}: {token:?}");
-            assert_eq!(token.token_type(), expected_type);
-            assert_eq!(token.literal(), *expected_literal);
+            assert_eq!(expected_type, token.token_type());
+            assert_eq!(*expected_literal, token.literal());
         }
     }
 }

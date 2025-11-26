@@ -230,7 +230,7 @@ impl Evaluator {
         let index = self.eval_expression(index, env)?;
 
         let Object::Integer(index) = index else {
-            return Err(EvalError::InvalidArgumentType {
+            return Err(EvalError::ExpectedSingleType {
                 expected: ObjectType::Integer,
                 got: index.object_type(),
             });
@@ -306,16 +306,13 @@ impl Evaluator {
 
                 let argument = self.eval_expression(argument, env)?;
 
-                let Object::String(value) = argument else {
-                    return Err(EvalError::InvalidArgumentType {
-                        expected: ObjectType::String,
-                        got: argument.object_type(),
-                    });
-                };
-
-                let length = value.len() as i64;
-
-                Ok(Object::Integer(length))
+                if let Some(length) = argument.length() {
+                    Ok(Object::Integer(length as i64))
+                } else {
+                    Err(EvalError::NotIndexable {
+                        object: argument.object_type(),
+                    })
+                }
             }
         }
     }
@@ -377,7 +374,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_integer_object(evaluated, expected);
+            test_integer_object(expected, evaluated);
         }
     }
 
@@ -398,7 +395,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_boolean_object(evaluated, expected);
+            test_boolean_object(expected, evaluated);
         }
     }
 
@@ -415,7 +412,7 @@ mod tests {
 
         for (input, expected) in tests.iter() {
             let evaluated = test_eval(input);
-            test_string_object(evaluated, expected);
+            test_string_object(expected, evaluated);
         }
     }
 
@@ -443,7 +440,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -460,7 +457,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -485,7 +482,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_boolean_object(evaluated, expected);
+            test_boolean_object(expected, evaluated);
         }
     }
 
@@ -530,7 +527,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -548,7 +545,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -565,10 +562,10 @@ mod tests {
         };
 
         let expected_parameters = vec!["x".to_string()];
-        assert_eq!(parameters, expected_parameters);
+        assert_eq!(expected_parameters, parameters);
 
         let expected_body = "(x + 1)";
-        assert_eq!(body.to_string(), expected_body);
+        assert_eq!(expected_body, body.to_string());
     }
 
     #[test]
@@ -612,7 +609,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -643,10 +640,17 @@ mod tests {
             ),
             ("let a = 1; a();", "not a function: Integer"),
             ("1 / 0;", "division by zero"),
-            ("len(1)", "expected String, got Integer instead"),
+            (
+                "len(1)",
+                "not indexable: only String or Array can be indexed, got Integer instead",
+            ),
             (
                 "len(\"hello\", \"world\")",
                 "expected 1 argument, got 2 instead",
+            ),
+            (
+                "1[0]",
+                "not indexable: only String or Array can be indexed, got Integer instead",
             ),
             (
                 "[1, 2, 3][3]",
@@ -655,7 +659,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            test_error(input, expected);
+            test_error(expected, input);
         }
     }
 
@@ -670,7 +674,7 @@ mod tests {
         ";
 
         let evaluated = test_eval(input);
-        test_object(evaluated, Object::Integer(4));
+        test_object(Object::Integer(4), evaluated);
     }
 
     #[test]
@@ -679,11 +683,14 @@ mod tests {
             ("len(\"\")", Object::Integer(0)),
             ("len(\"four\")", Object::Integer(4)),
             ("len(\"hello world\")", Object::Integer(11)),
+            ("len([])", Object::Integer(0)),
+            ("len([1, 2, 3])", Object::Integer(3)),
+            ("let arr = [1, 2, 3]; len(arr);", Object::Integer(3)),
         ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, evaluated);
         }
     }
 
@@ -697,57 +704,64 @@ mod tests {
             Object::Integer(4),
             Object::Integer(6),
         ]);
-        test_object(evaluated, expected);
+        test_object(expected, evaluated);
     }
 
-    fn test_object(object: Object, expected: Object) {
-        match (object, expected) {
-            (Object::Integer(left), Object::Integer(right)) => assert_eq!(left, right),
-            (Object::Boolean(left), Object::Boolean(right)) => assert_eq!(left, right),
-            (Object::Null, Object::Null) => (),
-            (Object::ReturnValue(left), Object::ReturnValue(right)) => test_object(*left, *right),
-            (Object::Array(left), Object::Array(right)) => {
-                for (left, right) in left.iter().zip(right.iter()) {
-                    test_object(left.clone(), right.clone());
-                }
+    fn test_object(expected: Object, received: Object) {
+        match (expected, received) {
+            (Object::Integer(expected), Object::Integer(received)) => {
+                assert_eq!(expected, received)
             }
-            (Object::String(left), Object::String(right)) => assert_eq!(left, right),
-            (left, right) => todo!("unhandled branch in test_object: {left:?} != {right:?}"),
+            (Object::Boolean(expected), Object::Boolean(received)) => {
+                assert_eq!(expected, received)
+            }
+            (Object::Null, Object::Null) => (),
+            (Object::ReturnValue(expected), Object::ReturnValue(received)) => {
+                test_object(*received, *expected)
+            }
+            (Object::Array(expected), Object::Array(received)) => expected
+                .iter()
+                .zip(received.iter())
+                .for_each(|(expected, received)| test_object(received.clone(), expected.clone())),
+            (Object::String(expected), Object::String(received)) => assert_eq!(expected, received),
+            (expected, received) => {
+                todo!("unhandled branch in test_object: {expected:?} != {received:?}")
+            }
         }
     }
 
-    fn test_integer_object(object: Object, expected: i64) {
-        let Object::Integer(value) = object else {
-            panic!("object is not an integer, got {object:?}");
+    fn test_integer_object(expected: i64, received: Object) {
+        let Object::Integer(value) = received else {
+            panic!("object is not an integer, got {received:?}");
         };
 
-        assert_eq!(value, expected);
+        assert_eq!(expected, value);
     }
 
-    fn test_boolean_object(object: Object, expected: bool) {
-        let Object::Boolean(value) = object else {
-            panic!("object is not a boolean, got {object:?}");
+    fn test_boolean_object(expected: bool, received: Object) {
+        let Object::Boolean(value) = received else {
+            panic!("object is not a boolean, got {received:?}");
         };
 
-        assert_eq!(value, expected);
+        assert_eq!(expected, value);
     }
 
-    fn test_string_object(object: Object, expected: &str) {
-        let Object::String(value) = object else {
-            panic!("object is not a string, got {object:?}");
+    fn test_string_object(expected: &str, received: Object) {
+        let Object::String(value) = received else {
+            panic!("object is not a string, got {received:?}");
         };
 
-        assert_eq!(value, expected);
+        assert_eq!(expected, value);
     }
 
-    fn test_error(input: &str, expected: &str) {
-        let program = Program::from_str(input).expect("program construction failed");
+    fn test_error(expected: &str, received: &str) {
+        let program = Program::from_str(received).expect("program construction failed");
         let evaluator = Evaluator::new();
         let env = Env::new();
 
         match evaluator.eval(&program, env) {
             Ok(_) => panic!("expected error but got no error"),
-            Err(error) => assert_eq!(error.to_string(), expected),
+            Err(error) => assert_eq!(expected, error.to_string()),
         }
     }
 

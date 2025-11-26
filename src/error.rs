@@ -1,4 +1,4 @@
-use crate::object::ObjectType;
+use crate::object::{Object, ObjectType};
 use crate::token::{Token, TokenType};
 use std::fmt::{self, Display};
 
@@ -49,9 +49,6 @@ pub enum EvalError {
         operator: String,
     },
     DivisionByZero,
-    NotIndexable {
-        object: ObjectType,
-    },
     NotAFunction {
         function: ObjectType,
     },
@@ -62,9 +59,16 @@ pub enum EvalError {
         expected: usize,
         got: usize,
     },
-    InvalidArgumentType {
+    ExpectedSingleType {
         expected: ObjectType,
         got: ObjectType,
+    },
+    ExpectedMultipleTypes {
+        expected: &'static [ObjectType],
+        got: ObjectType,
+    },
+    NotIndexable {
+        object: ObjectType,
     },
     IndexOutOfBounds {
         index: usize,
@@ -103,11 +107,29 @@ impl Display for EvalError {
 
                 write!(f, "expected {expected} {arg}, got {got} instead")
             }
-            EvalError::InvalidArgumentType { expected, got } => {
+            EvalError::ExpectedSingleType { expected, got } => {
                 write!(f, "expected {expected:?}, got {got:?} instead")
             }
+            EvalError::ExpectedMultipleTypes { expected, got } => {
+                let expected = expected
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" or ");
+
+                write!(f, "expected {expected}, got {got:?} instead")
+            }
             EvalError::NotIndexable { object } => {
-                write!(f, "only arrays can be indexed, got {object:?} instead")
+                let indexable_types = Object::indexable_types()
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" or ");
+
+                write!(
+                    f,
+                    "not indexable: only {indexable_types} can be indexed, got {object:?} instead",
+                )
             }
             EvalError::IndexOutOfBounds { index, length } => {
                 write!(

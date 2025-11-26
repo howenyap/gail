@@ -220,6 +220,18 @@ impl Object {
 
         Ok(evaluated)
     }
+
+    pub fn indexable_types() -> &'static [ObjectType] {
+        &[ObjectType::String, ObjectType::Array]
+    }
+
+    pub fn length(&self) -> Option<usize> {
+        match self {
+            Object::String(value) => Some(value.len()),
+            Object::Array(value) => Some(value.len()),
+            _ => None,
+        }
+    }
 }
 
 impl ObjectTrait for Object {
@@ -271,6 +283,12 @@ impl ObjectTrait for Object {
 impl Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inspect())
+    }
+}
+
+impl Display for ObjectType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
