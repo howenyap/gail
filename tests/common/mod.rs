@@ -4,7 +4,7 @@ use gail::evaluator::Evaluator;
 use gail::object::ObjectTrait;
 
 pub fn run(input: &str) -> String {
-    let program = Program::from_str(input).expect("program construction failed");
+    let program = Program::from_input(input).expect("program construction failed");
     let evaluator = Evaluator::new();
     let env = Env::new();
 

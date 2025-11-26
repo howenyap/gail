@@ -24,6 +24,9 @@ pub enum Object {
 pub enum FunctionType {
     Len,
     Push,
+    First,
+    Last,
+    Rest,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -64,12 +67,13 @@ impl Object {
         Object::ReturnValue(Box::new(value))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn add(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left + right),
             (Object::String(left), Object::String(right)) => Object::String(left + &right),
             (Object::Array(left), Object::Array(right)) => {
-                Object::Array(left.into_iter().chain(right.into_iter()).collect())
+                Object::Array(left.into_iter().chain(right).collect())
             }
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
@@ -304,13 +308,13 @@ impl Display for Object {
 
 impl Display for ObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
 impl Display for FunctionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = format!("{:?}", self).to_lowercase();
+        let name = format!("{self:?}").to_lowercase();
         write!(f, "builtin function: {name}")
     }
 }

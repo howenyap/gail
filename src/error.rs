@@ -80,6 +80,17 @@ pub enum EvalError {
     UsizeOutOfRange {
         value: i64,
     },
+    EmptyArray,
+}
+
+impl EvalError {
+    pub fn expected_type(expected: ObjectType, got: ObjectType) -> Self {
+        Self::ExpectedType { expected, got }
+    }
+
+    pub fn invalid_argument_count(expected: usize, got: usize) -> Self {
+        Self::InvalidArgumentCount { expected, got }
+    }
 }
 
 impl Display for EvalError {
@@ -156,6 +167,7 @@ impl Display for EvalError {
                     value
                 )
             }
+            EvalError::EmptyArray => write!(f, "empty array"),
         }
     }
 }

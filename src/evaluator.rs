@@ -191,10 +191,10 @@ impl Evaluator {
             .collect::<Result<Vec<Object>>>()?;
 
         if parameters.len() != arguments.len() {
-            return Err(EvalError::InvalidArgumentCount {
-                expected: parameters.len(),
-                got: arguments.len(),
-            });
+            return Err(EvalError::invalid_argument_count(
+                parameters.len(),
+                arguments.len(),
+            ));
         }
 
         let bindings = parameters.into_iter().zip(arguments).collect();
@@ -230,10 +230,10 @@ impl Evaluator {
         let index = self.eval_expression(index, env)?;
 
         let Object::Integer(index) = index else {
-            return Err(EvalError::ExpectedType {
-                expected: ObjectType::Integer,
-                got: index.object_type(),
-            });
+            return Err(EvalError::expected_type(
+                ObjectType::Integer,
+                index.object_type(),
+            ));
         };
 
         if let Object::Array(ref array) = left {
@@ -285,6 +285,9 @@ impl Evaluator {
         let function_type = match name {
             "len" => FunctionType::Len,
             "push" => FunctionType::Push,
+            "first" => FunctionType::First,
+            "last" => FunctionType::Last,
+            "rest" => FunctionType::Rest,
             _ => {
                 return Err(EvalError::IdentifierNotFound {
                     name: name.to_string(),
@@ -303,14 +306,8 @@ impl Evaluator {
     ) -> Result<Object> {
         match function_type {
             FunctionType::Len => {
-                let [argument] = arguments else {
-                    return Err(EvalError::InvalidArgumentCount {
-                        expected: 1,
-                        got: arguments.len(),
-                    });
-                };
-
-                let argument = self.eval_expression(argument, env)?;
+                let [argument] = self.expect_n_arguments::<_, 1>(arguments)?;
+                let argument = self.eval_expression(argument, env.clone())?;
 
                 if let Some(length) = argument.length() {
                     Ok(Object::Integer(length as i64))
@@ -321,21 +318,15 @@ impl Evaluator {
                 }
             }
             FunctionType::Push => {
-                let [array, element] = arguments else {
-                    return Err(EvalError::InvalidArgumentCount {
-                        expected: 2,
-                        got: arguments.len(),
-                    });
-                };
-
-                let element = self.eval_expression(element, env.clone())?;
+                let [array, element] = self.expect_n_arguments::<_, 2>(arguments)?;
                 let array_expr = self.eval_expression(array, env.clone())?;
+                let element = self.eval_expression(element, env.clone())?;
 
                 let Object::Array(mut mut_array) = array_expr else {
-                    return Err(EvalError::ExpectedType {
-                        expected: ObjectType::Array,
-                        got: array_expr.object_type(),
-                    });
+                    return Err(EvalError::expected_type(
+                        ObjectType::Array,
+                        array_expr.object_type(),
+                    ));
                 };
 
                 mut_array.push(element);
@@ -345,6 +336,30 @@ impl Evaluator {
                 }
 
                 Ok(Object::Null)
+            }
+            FunctionType::First | FunctionType::Last | FunctionType::Rest => {
+                let [array] = self.expect_n_arguments::<_, 1>(arguments)?;
+                let array = self.eval_expression(array, env)?;
+
+                let Object::Array(array) = array else {
+                    return Err(EvalError::expected_type(
+                        ObjectType::Array,
+                        array.object_type(),
+                    ));
+                };
+
+                match function_type {
+                    FunctionType::First => array.first().ok_or(EvalError::EmptyArray).cloned(),
+                    FunctionType::Last => array.last().ok_or(EvalError::EmptyArray).cloned(),
+                    FunctionType::Rest => {
+                        if array.len() < 2 {
+                            Err(EvalError::EmptyArray)
+                        } else {
+                            Ok(Object::Array(array[1..].to_vec()))
+                        }
+                    }
+                    other => unreachable!("unhandled branch in eval_builtin_function: {other:?}"),
+                }
             }
         }
     }
@@ -373,9 +388,21 @@ impl Evaluator {
 
         Ok(Object::Null)
     }
+
+    fn expect_n_arguments<'a, T, const N: usize>(&self, arguments: &'a [T]) -> Result<&'a [T; N]> {
+        arguments
+            .try_into()
+            .map_err(|_| EvalError::invalid_argument_count(N, arguments.len()))
+    }
 }
 
 type Result<T> = std::result::Result<T, EvalError>;
+
+impl Default for Evaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -688,6 +715,10 @@ mod tests {
                 "[1, 2, 3][3]",
                 "index out of bounds: object has length 3, but index is 3",
             ),
+            ("first([])", "empty array"),
+            ("last([])", "empty array"),
+            ("rest([])", "empty array"),
+            ("rest([1])", "empty array"),
         ];
 
         for (input, expected) in tests {
@@ -718,6 +749,12 @@ mod tests {
             ("len([])", Object::Integer(0)),
             ("len([1, 2, 3])", Object::Integer(3)),
             ("let arr = [1, 2, 3]; len(arr);", Object::Integer(3)),
+            ("first([1, 2, 3])", Object::Integer(1)),
+            ("last([1, 2, 3])", Object::Integer(3)),
+            (
+                "rest([1, 2, 3])",
+                Object::Array(vec![Object::Integer(2), Object::Integer(3)]),
+            ),
         ];
 
         for (input, expected) in tests {
@@ -787,7 +824,7 @@ mod tests {
     }
 
     fn test_error(expected: &str, received: &str) {
-        let program = Program::from_str(received).expect("program construction failed");
+        let program = Program::from_input(received).expect("program construction failed");
         let evaluator = Evaluator::new();
         let env = Env::new();
 
@@ -798,7 +835,7 @@ mod tests {
     }
 
     fn test_eval(input: &str) -> Object {
-        let program = Program::from_str(input).expect("program construction failed");
+        let program = Program::from_input(input).expect("program construction failed");
         let evaluator = Evaluator::new();
         let env = Env::new();
 

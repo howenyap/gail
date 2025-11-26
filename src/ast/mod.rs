@@ -38,7 +38,7 @@ impl Program {
     }
 
     #[allow(dead_code)]
-    pub fn from_str(input: &str) -> Result<Self, &'static str> {
+    pub fn from_input(input: &str) -> Result<Self, &'static str> {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();

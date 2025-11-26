@@ -24,7 +24,7 @@ impl Repl {
                 break;
             }
 
-            let Ok(program) = Program::from_str(&line) else {
+            let Ok(program) = Program::from_input(&line) else {
                 line.clear();
                 continue;
             };
