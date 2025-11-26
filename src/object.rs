@@ -278,7 +278,7 @@ impl ObjectTrait for Object {
 
                 format!("[{elements}]")
             }
-            Object::Null => "null".to_string(),
+            Object::Null => "()".to_string(),
             Object::ReturnValue(value) => value.inspect(),
             Object::Function {
                 parameters, body, ..
