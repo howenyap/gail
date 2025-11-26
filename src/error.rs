@@ -49,6 +49,9 @@ pub enum EvalError {
         operator: String,
     },
     DivisionByZero,
+    NotIndexable {
+        object: ObjectType,
+    },
     NotAFunction {
         function: ObjectType,
     },
@@ -62,6 +65,10 @@ pub enum EvalError {
     InvalidArgumentType {
         expected: ObjectType,
         got: ObjectType,
+    },
+    IndexOutOfBounds {
+        index: i64,
+        length: usize,
     },
 }
 
@@ -95,6 +102,15 @@ impl Display for EvalError {
             }
             EvalError::InvalidArgumentType { expected, got } => {
                 write!(f, "expected {expected:?}, got {got:?} instead")
+            }
+            EvalError::NotIndexable { object } => {
+                write!(f, "only arrays can be indexed, got {object:?} instead")
+            }
+            EvalError::IndexOutOfBounds { index, length } => {
+                write!(
+                    f,
+                    "index out of bounds: object has length {length}, but index is {index}"
+                )
             }
         }
     }

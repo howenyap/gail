@@ -9,6 +9,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     String(String),
+    Array(Vec<Object>),
     Null,
     ReturnValue(Box<Object>),
     Function {
@@ -29,6 +30,7 @@ pub enum ObjectType {
     Integer,
     Boolean,
     String,
+    Array,
     Null,
     ReturnValue,
     Function,
@@ -230,6 +232,7 @@ impl ObjectTrait for Object {
             Object::ReturnValue(_) => ObjectType::ReturnValue,
             Object::Function { .. } => ObjectType::Function,
             Object::BuiltinFunction { .. } => ObjectType::BuiltinFunction,
+            Object::Array(_) => ObjectType::Array,
         }
     }
 
@@ -238,6 +241,15 @@ impl ObjectTrait for Object {
             Object::Integer(value) => value.to_string(),
             Object::Boolean(value) => value.to_string(),
             Object::String(value) => value.to_string(),
+            Object::Array(value) => {
+                let elements: String = value
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                format!("[{elements}]")
+            }
             Object::Null => "null".to_string(),
             Object::ReturnValue(value) => value.inspect(),
             Object::Function {

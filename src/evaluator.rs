@@ -41,6 +41,8 @@ impl Evaluator {
                 function,
                 arguments,
             } => self.eval_call_expression(function, arguments, env)?,
+            Expression::Array { elements } => self.eval_array_expression(elements, env)?,
+            Expression::Index { left, index } => self.eval_index_expression(left, index, env)?,
         };
 
         Ok(evaluated)
@@ -205,6 +207,57 @@ impl Evaluator {
         })
     }
 
+    fn eval_array_expression(&self, elements: &[Expression], env: Env) -> Result<Object> {
+        if elements.is_empty() {
+            return Ok(Object::Array(vec![]));
+        }
+
+        let elements: Vec<_> = elements
+            .iter()
+            .map(|e| self.eval_expression(e, env.clone()))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Object::Array(elements))
+    }
+
+    fn eval_index_expression(
+        &self,
+        left: &Expression,
+        index: &Expression,
+        env: Env,
+    ) -> Result<Object> {
+        let left = self.eval_expression(left, env.clone())?;
+        let index = self.eval_expression(index, env)?;
+
+        let Object::Array(elements) = left else {
+            return Err(EvalError::NotIndexable {
+                object: left.object_type(),
+            });
+        };
+
+        let Object::Integer(index) = index else {
+            return Err(EvalError::InvalidArgumentType {
+                expected: ObjectType::Integer,
+                got: index.object_type(),
+            });
+        };
+
+        if index < 0 {
+            return Err(EvalError::IndexOutOfBounds {
+                index,
+                length: elements.len(),
+            });
+        }
+
+        match elements.get(index as usize) {
+            Some(element) => Ok(element.clone()),
+            None => Err(EvalError::IndexOutOfBounds {
+                index,
+                length: elements.len(),
+            }),
+        }
+    }
+
     fn eval_identifier(&self, name: &str, env: Env) -> Result<Object> {
         if let Some(value) = env.get(name) {
             return Ok(value);
@@ -345,6 +398,31 @@ mod tests {
         for (input, expected) in tests.iter() {
             let evaluated = test_eval(input);
             test_string_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        let tests = vec![
+            ("[1, 2, 3][0]", Object::Integer(1)),
+            ("[1, 2, 3][1]", Object::Integer(2)),
+            ("[1, 2, 3][2]", Object::Integer(3)),
+            ("let i = 0; [1][i];", Object::Integer(1)),
+            ("[1, 2, 3][1 + 1];", Object::Integer(3)),
+            ("let myArray = [1, 2, 3]; myArray[2];", Object::Integer(3)),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                Object::Integer(6),
+            ),
+            (
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i];",
+                Object::Integer(2),
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_object(evaluated, expected);
         }
     }
 
@@ -532,10 +610,18 @@ mod tests {
                 "len(\"hello\", \"world\")",
                 "expected 1 argument, got 2 instead",
             ),
+            (
+                "[1, 2, 3][3]",
+                "index out of bounds: object has length 3, but index is 3",
+            ),
+            (
+                "[1, 2, 3][-1]",
+                "index out of bounds: object has length 3, but index is -1",
+            ),
         ];
 
         for (input, expected) in tests {
-            test_error_object(input, expected);
+            test_error(input, expected);
         }
     }
 
@@ -567,13 +653,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]";
+        let evaluated = test_eval(input);
+
+        let expected = Object::Array(vec![
+            Object::Integer(1),
+            Object::Integer(4),
+            Object::Integer(6),
+        ]);
+        test_object(evaluated, expected);
+    }
+
     fn test_object(object: Object, expected: Object) {
         match (object, expected) {
             (Object::Integer(left), Object::Integer(right)) => assert_eq!(left, right),
             (Object::Boolean(left), Object::Boolean(right)) => assert_eq!(left, right),
             (Object::Null, Object::Null) => (),
             (Object::ReturnValue(left), Object::ReturnValue(right)) => test_object(*left, *right),
-            _ => unreachable!(),
+            (Object::Array(left), Object::Array(right)) => {
+                for (left, right) in left.iter().zip(right.iter()) {
+                    test_object(left.clone(), right.clone());
+                }
+            }
+            (left, right) => todo!("unhandled branch in test_object: {left:?} != {right:?}"),
         }
     }
 
@@ -601,7 +705,7 @@ mod tests {
         assert_eq!(value, expected);
     }
 
-    fn test_error_object(input: &str, expected: &str) {
+    fn test_error(input: &str, expected: &str) {
         let program = Program::from_str(input).expect("program construction failed");
         let evaluator = Evaluator::new();
         let env = Env::new();

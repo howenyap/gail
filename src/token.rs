@@ -31,6 +31,8 @@ pub enum TokenType {
     Rparen,
     Lbrace,
     Rbrace,
+    Lbracket,
+    Rbracket,
 
     // Keywords
     Function,
@@ -71,6 +73,8 @@ impl Token<'_> {
             b')' => Token::rparen(),
             b'{' => Token::lbrace(),
             b'}' => Token::rbrace(),
+            b'[' => Token::lbracket(),
+            b']' => Token::rbracket(),
             b',' => Token::comma(),
             b';' => Token::semicolon(),
             _ => Token::illegal(),
@@ -118,6 +122,7 @@ impl Token<'_> {
             TokenType::Plus | TokenType::Minus => Precedence::Sum,
             TokenType::Asterisk | TokenType::Slash => Precedence::Product,
             TokenType::Lparen => Precedence::Call,
+            TokenType::Lbracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }
@@ -164,6 +169,8 @@ implement_create_token! {
     (Rparen, ")", rparen),
     (Lbrace, "{", lbrace),
     (Rbrace, "}", rbrace),
+    (Lbracket, "[", lbracket),
+    (Rbracket, "]", rbracket),
 
     // Keywords
     (Function, "fn", function),

@@ -47,6 +47,15 @@ pub enum Expression {
         function: Box<Expression>,
         arguments: Vec<Expression>,
     },
+    Array {
+        elements: Vec<Expression>,
+    },
+    Index {
+        // invariant: expression must be Array
+        left: Box<Expression>,
+        // invariant: expression must be Integer
+        index: Box<Expression>,
+    },
 }
 
 impl Expression {
@@ -116,6 +125,17 @@ impl Expression {
             arguments,
         }
     }
+
+    pub fn array(elements: Vec<Expression>) -> Self {
+        Self::Array { elements }
+    }
+
+    pub fn index(left: Expression, index: Expression) -> Self {
+        Self::Index {
+            left: Box::new(left),
+            index: Box::new(index),
+        }
+    }
 }
 
 impl Display for Expression {
@@ -163,6 +183,21 @@ impl Display for Expression {
                     .join(", ");
 
                 write!(f, "{function}({args})")
+            }
+            Self::Array { elements } => {
+                let elements: String = elements
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                write!(f, "[{elements}]")
+            }
+            Self::Index { left, index } => {
+                let left = left.to_string();
+                let index = index.to_string();
+
+                write!(f, "({left}[{index}])")
             }
         }
     }
