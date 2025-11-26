@@ -77,6 +77,9 @@ pub enum EvalError {
     IndexOutOfRange {
         index: i64,
     },
+    UsizeOutOfRange {
+        value: i64,
+    },
 }
 
 impl Display for EvalError {
@@ -143,6 +146,14 @@ impl Display for EvalError {
                     "index out of range: index must be between 0 and {}, got {}",
                     usize::MAX,
                     index
+                )
+            }
+            EvalError::UsizeOutOfRange { value } => {
+                write!(
+                    f,
+                    "count out of range: count must be between 0 and {}, got {}",
+                    usize::MAX,
+                    value
                 )
             }
         }

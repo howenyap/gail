@@ -67,6 +67,9 @@ impl Object {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left + right),
             (Object::String(left), Object::String(right)) => Object::String(left + &right),
+            (Object::Array(left), Object::Array(right)) => {
+                Object::Array(left.into_iter().chain(right.into_iter()).collect())
+            }
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
@@ -98,7 +101,19 @@ impl Object {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Integer(left * right),
             (Object::Integer(left), Object::String(right)) => {
-                Object::String(right.repeat(left as usize))
+                let times: usize = left
+                    .try_into()
+                    .map_err(|_| EvalError::UsizeOutOfRange { value: left })?;
+
+                Object::String(right.repeat(times))
+            }
+            (Object::Integer(left), Object::Array(right)) => {
+                let length = right.len();
+                let times: usize = left
+                    .try_into()
+                    .map_err(|_| EvalError::UsizeOutOfRange { value: left })?;
+
+                Object::Array(right.into_iter().cycle().take(times * length).collect())
             }
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {

@@ -238,6 +238,7 @@ impl Evaluator {
 
         if let Object::Array(ref array) = left {
             let index = self.validate_index(index, array.len())?;
+            
             return match array.get(index) {
                 Some(element) => Ok(element.clone()),
                 None => Err(EvalError::IndexOutOfBounds {
