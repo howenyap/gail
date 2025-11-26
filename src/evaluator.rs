@@ -229,12 +229,6 @@ impl Evaluator {
         let left = self.eval_expression(left, env.clone())?;
         let index = self.eval_expression(index, env)?;
 
-        let Object::Array(elements) = left else {
-            return Err(EvalError::NotIndexable {
-                object: left.object_type(),
-            });
-        };
-
         let Object::Integer(index) = index else {
             return Err(EvalError::InvalidArgumentType {
                 expected: ObjectType::Integer,
@@ -242,20 +236,44 @@ impl Evaluator {
             });
         };
 
-        if index < 0 {
-            return Err(EvalError::IndexOutOfBounds {
-                index,
-                length: elements.len(),
-            });
+        if let Object::Array(ref array) = left {
+            let index = self.validate_index(index, array.len())?;
+            return match array.get(index) {
+                Some(element) => Ok(element.clone()),
+                None => Err(EvalError::IndexOutOfBounds {
+                    index,
+                    length: array.len(),
+                }),
+            };
+        };
+
+        if let Object::String(ref string) = left {
+            let index = self.validate_index(index, string.len())?;
+
+            return match string.chars().nth(index) {
+                Some(char) => Ok(Object::String(char.to_string())),
+                None => Err(EvalError::IndexOutOfBounds {
+                    index,
+                    length: string.len(),
+                }),
+            };
         }
 
-        match elements.get(index as usize) {
-            Some(element) => Ok(element.clone()),
-            None => Err(EvalError::IndexOutOfBounds {
-                index,
-                length: elements.len(),
-            }),
-        }
+        Err(EvalError::NotIndexable {
+            object: left.object_type(),
+        })
+    }
+
+    fn validate_index(&self, index: i64, length: usize) -> Result<usize> {
+        let index = if index >= 0 {
+            index
+        } else {
+            length as i64 + index
+        };
+
+        index
+            .try_into()
+            .map_err(|_| EvalError::IndexOutOfRange { index })
     }
 
     fn eval_identifier(&self, name: &str, env: Env) -> Result<Object> {
@@ -418,6 +436,26 @@ mod tests {
                 "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i];",
                 Object::Integer(2),
             ),
+            ("[1, 2, 3][-1]", Object::Integer(3)),
+            ("[1, 2, 3][-2]", Object::Integer(2)),
+            ("[1, 2, 3][-3]", Object::Integer(1)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_string_index_expressions() {
+        let tests = vec![
+            ("\"hello\"[0]", Object::String("h".to_string())),
+            ("\"hello\"[1]", Object::String("e".to_string())),
+            ("\"hello\"[2]", Object::String("l".to_string())),
+            ("\"hello\"[3]", Object::String("l".to_string())),
+            ("\"hello\"[4]", Object::String("o".to_string())),
+            ("\"hello\"[-1]", Object::String("o".to_string())),
         ];
 
         for (input, expected) in tests {
@@ -614,10 +652,6 @@ mod tests {
                 "[1, 2, 3][3]",
                 "index out of bounds: object has length 3, but index is 3",
             ),
-            (
-                "[1, 2, 3][-1]",
-                "index out of bounds: object has length 3, but index is -1",
-            ),
         ];
 
         for (input, expected) in tests {
@@ -677,6 +711,7 @@ mod tests {
                     test_object(left.clone(), right.clone());
                 }
             }
+            (Object::String(left), Object::String(right)) => assert_eq!(left, right),
             (left, right) => todo!("unhandled branch in test_object: {left:?} != {right:?}"),
         }
     }

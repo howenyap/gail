@@ -67,8 +67,11 @@ pub enum EvalError {
         got: ObjectType,
     },
     IndexOutOfBounds {
-        index: i64,
+        index: usize,
         length: usize,
+    },
+    IndexOutOfRange {
+        index: i64,
     },
 }
 
@@ -110,6 +113,14 @@ impl Display for EvalError {
                 write!(
                     f,
                     "index out of bounds: object has length {length}, but index is {index}"
+                )
+            }
+            EvalError::IndexOutOfRange { index } => {
+                write!(
+                    f,
+                    "index out of range: index must be between 0 and {}, got {}",
+                    usize::MAX,
+                    index
                 )
             }
         }
