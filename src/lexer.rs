@@ -49,8 +49,28 @@ impl<'a> Lexer<'a> {
                     Token::bang()
                 }
             }
+            b'<' => {
+                if self.peek_char() == Some(&b'=') {
+                    self.read_char();
+                    self.read_char();
+                    Token::less_than_or_equal()
+                } else {
+                    self.read_char();
+                    Token::less_than()
+                }
+            }
+            b'>' => {
+                if self.peek_char() == Some(&b'=') {
+                    self.read_char();
+                    self.read_char();
+                    Token::greater_than_or_equal()
+                } else {
+                    self.read_char();
+                    Token::greater_than()
+                }
+            }
             b'"' => self.read_string(),
-            b'+' | b'-' | b'*' | b'/' | b'<' | b'>' | b'(' | b')' | b'{' | b'}' | b'[' | b']'
+            b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b'{' | b'}' | b'[' | b']'
             | b',' | b';' => {
                 let token = Token::from_char(ch);
                 self.read_char();

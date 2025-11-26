@@ -184,6 +184,36 @@ impl Object {
         Ok(evaluated)
     }
 
+    pub fn greater_than_or_equal(self, other: Self) -> Result<Self, EvalError> {
+        let evaluated = match (self, other) {
+            (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left >= right),
+            (left, right) => {
+                return Err(EvalError::UnsupportedInfixOperator {
+                    left: left.object_type(),
+                    right: right.object_type(),
+                    operator: ">=".to_string(),
+                });
+            }
+        };
+
+        Ok(evaluated)
+    }
+
+    pub fn less_than_or_equal(self, other: Self) -> Result<Self, EvalError> {
+        let evaluated = match (self, other) {
+            (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left <= right),
+            (left, right) => {
+                return Err(EvalError::UnsupportedInfixOperator {
+                    left: left.object_type(),
+                    right: right.object_type(),
+                    operator: "<=".to_string(),
+                });
+            }
+        };
+
+        Ok(evaluated)
+    }
+
     pub fn equal(self, other: Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left == right),

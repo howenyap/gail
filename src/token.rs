@@ -23,6 +23,8 @@ pub enum TokenType {
     NotEqual,
     LessThan,
     GreaterThan,
+    LessThanOrEqual,
+    GreaterThanOrEqual,
 
     // Delimiters
     Comma,
@@ -118,7 +120,7 @@ impl Token<'_> {
     pub fn precedence(&self) -> Precedence {
         match self.token_type {
             TokenType::Equal | TokenType::NotEqual => Precedence::Equals,
-            TokenType::LessThan | TokenType::GreaterThan => Precedence::LessGreater,
+            TokenType::LessThan | TokenType::GreaterThan | TokenType::LessThanOrEqual | TokenType::GreaterThanOrEqual => Precedence::LessGreater,
             TokenType::Plus | TokenType::Minus => Precedence::Sum,
             TokenType::Asterisk | TokenType::Slash => Precedence::Product,
             TokenType::Lparen => Precedence::Call,
@@ -159,6 +161,8 @@ implement_create_token! {
     // Comparisons
     (LessThan, "<", less_than),
     (GreaterThan, ">", greater_than),
+    (LessThanOrEqual, "<=", less_than_or_equal),
+    (GreaterThanOrEqual, ">=", greater_than_or_equal),
     (Equal, "==", equal),
     (NotEqual, "!=", not_equal),
 

@@ -6,14 +6,10 @@ use common::run;
 fn test_fibonacci() {
     let input = r#"
     let fib = fn(n) {
-      if (n == 0) {
-        0;
+      if (n <= 1) {
+        n;
       } else {
-        if (n == 1) {
-          1;
-        } else {
-          fib(n - 1) + fib(n - 2);
-        }
+        fib(n - 1) + fib(n - 2);
       }
     };
     
@@ -132,5 +128,48 @@ fn test_reduce_array_product() {
 
     let received = run(input);
     let expected = "6";
+    assert_eq!(expected, received);
+}
+
+#[test]
+fn test_merge_sort() {
+    let input = r#"
+    let merge = fn(left, right) {
+      if (len(left) == 0) {
+        return right;
+      } 
+
+      if (len(right) == 0) {
+        return left;
+      }
+
+      let l= first(left);
+      let r = first(right);
+
+      if (l < r) {
+        [l] + merge(rest(left), right);
+      } else {
+        [r] + merge(left, rest(right));
+      }
+    };
+
+    let merge_sort = fn(arr) {
+      if (len(arr) <= 1) {
+        arr;
+      } else {
+        let n = len(arr);
+        let mid = n / 2;
+        let left = slice(arr, 0, mid);
+        let right = slice(arr, mid, n);
+
+        merge(merge_sort(left), merge_sort(right));
+      }
+    };
+
+    merge_sort([5, 4, 3, 2, 1]);
+  "#;
+
+    let received = run(input);
+    let expected = "[1, 2, 3, 4, 5]";
     assert_eq!(expected, received);
 }

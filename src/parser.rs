@@ -114,7 +114,9 @@ impl<'a> Parser<'a> {
             | TokenType::Equal
             | TokenType::NotEqual
             | TokenType::GreaterThan
-            | TokenType::LessThan => self.parse_infix_expression(left),
+            | TokenType::LessThan
+            | TokenType::GreaterThanOrEqual
+            | TokenType::LessThanOrEqual => self.parse_infix_expression(left),
             TokenType::Lparen => self.parse_call_expression(left),
             TokenType::Lbracket => self.parse_index_expression(left),
             _ => Err(ParseError::UnknownInfixOperator {
@@ -371,6 +373,8 @@ impl<'a> Parser<'a> {
                 | NotEqual
                 | LessThan
                 | GreaterThan
+                | LessThanOrEqual
+                | GreaterThanOrEqual
                 | Lparen
                 | Lbracket
         )
