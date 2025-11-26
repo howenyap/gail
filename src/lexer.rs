@@ -24,44 +24,41 @@ impl<'a> Lexer<'a> {
     pub fn next_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
 
-        if self.is_eof() {
+        let Some(ch) = self.curr_char() else {
             return Token::eof();
-        }
+        };
 
-        if self.is_quote() {
-            return self.read_string();
-        }
-
-        if self.is_symbol() {
-            match (self.curr_char(), self.peek_char()) {
-                (Some(b'='), Some(b'=')) => {
+        match ch {
+            b'=' => {
+                if self.peek_char() == Some(&b'=') {
                     self.read_char();
                     self.read_char();
-                    return Token::equal();
+                    Token::equal()
+                } else {
+                    self.read_char();
+                    Token::assign()
                 }
-                (Some(b'!'), Some(b'=')) => {
-                    self.read_char();
-                    self.read_char();
-                    return Token::not_equal();
-                }
-                (Some(ch), _) => {
-                    let token = Token::from_char(ch);
-                    self.read_char();
-                    return token;
-                }
-                _ => {}
             }
+            b'!' => {
+                if self.peek_char() == Some(&b'=') {
+                    self.read_char();
+                    self.read_char();
+                    Token::not_equal()
+                } else {
+                    self.read_char();
+                    Token::bang()
+                }
+            }
+            b'"' => self.read_string(),
+            b'+' | b'-' | b'*' | b'/' | b'<' | b'>' | b'(' | b')' | b'{' | b'}' | b',' | b';' => {
+                let token = Token::from_char(ch);
+                self.read_char();
+                token
+            }
+            ch if ch.is_ascii_alphabetic() => Token::from_keyword(self.read_identifier()),
+            ch if ch.is_ascii_digit() => Token::from_number(self.read_number()),
+            _ => Token::illegal(),
         }
-
-        if self.is_letter() {
-            return Token::from_keyword(self.read_identifier());
-        }
-
-        if self.is_digit() {
-            return Token::from_number(self.read_number());
-        }
-
-        Token::illegal()
     }
 
     fn read_char(&mut self) -> Option<&u8> {
@@ -90,7 +87,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Token::from_string(&self.input[start..self.position])
+        Token::from_string(&self.input[start + 1..self.position - 1])
     }
 
     fn curr_char(&self) -> Option<&u8> {
@@ -123,28 +120,6 @@ impl<'a> Lexer<'a> {
 
     fn is_digit(&self) -> bool {
         matches!(self.curr_char(), Some(ch) if ch.is_ascii_digit())
-    }
-
-    fn is_symbol(&self) -> bool {
-        matches!(
-            self.curr_char(),
-            Some(
-                b'=' | b'+'
-                    | b'-'
-                    | b'!'
-                    | b'*'
-                    | b'/'
-                    | b'<'
-                    | b'>'
-                    | b'('
-                    | b')'
-                    | b'{'
-                    | b'}'
-                    | b','
-                    | b';'
-                    | b'"'
-            )
-        )
     }
 
     fn is_letter(&self) -> bool {

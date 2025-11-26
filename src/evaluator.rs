@@ -16,33 +16,30 @@ impl Evaluator {
 
     fn eval_expression(&self, expr: &Expression, env: Env) -> Result<Object> {
         let evaluated = match expr {
-            Expression::Int { value, .. } => Object::Integer(*value),
-            Expression::Bool { value, .. } => Object::Boolean(*value),
-            Expression::String { value, .. } => Object::String(value.clone()),
-            Expression::Prefix {
-                operator, right, ..
-            } => self.eval_prefix_expression(operator, right, env)?,
+            Expression::Int { value } => Object::Integer(*value),
+            Expression::Bool { value } => Object::Boolean(*value),
+            Expression::String { value } => Object::String(value.clone()),
+            Expression::Prefix { operator, right } => {
+                self.eval_prefix_expression(operator, right, env)?
+            }
             Expression::Infix {
                 left,
                 operator,
                 right,
-                ..
             } => self.eval_infix_expression(left, operator, right, env)?,
             Expression::If {
                 condition,
                 consequence,
                 alternative,
-                ..
             } => self.eval_conditional_expression(condition, consequence, alternative, env)?,
-            Expression::Block { statements, .. } => self.eval_block_expression(statements, env)?,
-            Expression::Ident { value, .. } => self.eval_identifier(value, env.clone())?,
-            Expression::Function {
-                parameters, body, ..
-            } => self.eval_function_expression(parameters, body, env),
+            Expression::Block { statements } => self.eval_block_expression(statements, env)?,
+            Expression::Ident { value } => self.eval_identifier(value, env.clone())?,
+            Expression::Function { parameters, body } => {
+                self.eval_function_expression(parameters, body, env)
+            }
             Expression::Call {
                 function,
                 arguments,
-                ..
             } => self.eval_call_expression(function, arguments, env)?,
         };
 
@@ -51,9 +48,9 @@ impl Evaluator {
 
     fn eval_statement(&self, stmt: &Statement, env: Env) -> Result<Object> {
         match stmt {
-            Statement::Expression { expression, .. } => self.eval_expression(expression, env),
-            Statement::Return { value, .. } => self.eval_return_statement(value, env),
-            Statement::Let { name, value, .. } => self.eval_let_statement(name, value, env),
+            Statement::Expression { expression } => self.eval_expression(expression, env),
+            Statement::Return { value } => self.eval_return_statement(value, env),
+            Statement::Let { name, value } => self.eval_let_statement(name, value, env),
         }
     }
 

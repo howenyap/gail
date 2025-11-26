@@ -103,7 +103,7 @@ impl Token<'_> {
     pub fn from_string(string: &str) -> Token {
         Token {
             token_type: String,
-            literal: string.trim_matches('"'),
+            literal: string,
         }
     }
 
