@@ -81,6 +81,10 @@ pub enum EvalError {
         value: i64,
     },
     EmptyArray,
+    InvalidRange {
+        range: (i64, i64),
+        limit: i64,
+    },
 }
 
 impl EvalError {
@@ -168,6 +172,15 @@ impl Display for EvalError {
                 )
             }
             EvalError::EmptyArray => write!(f, "empty array"),
+            EvalError::InvalidRange {
+                range: (start, end),
+                limit,
+            } => {
+                write!(
+                    f,
+                    "invalid range: range must be between 0..{limit}, got {start}..{end} instead"
+                )
+            }
         }
     }
 }

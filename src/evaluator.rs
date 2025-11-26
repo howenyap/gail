@@ -1,7 +1,7 @@
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::error::EvalError;
-use crate::object::{FunctionType, Object, ObjectTrait, ObjectType};
+use crate::object::{FunctionType, Object, ObjectTrait};
 
 pub struct Evaluator;
 
@@ -229,12 +229,7 @@ impl Evaluator {
         let left = self.eval_expression(left, env.clone())?;
         let index = self.eval_expression(index, env)?;
 
-        let Object::Integer(index) = index else {
-            return Err(EvalError::expected_type(
-                ObjectType::Integer,
-                index.object_type(),
-            ));
-        };
+        let index = index.expect_integer()?;
 
         if let Object::Array(ref array) = left {
             let index = self.validate_index(index, array.len())?;
@@ -277,6 +272,24 @@ impl Evaluator {
             .map_err(|_| EvalError::IndexOutOfRange { index })
     }
 
+    fn validate_range(&self, range: (i64, i64), length: usize) -> Result<(usize, usize)> {
+        match range {
+            (start, end) if start < 0 || end < 0 => Err(EvalError::InvalidRange {
+                range,
+                limit: length as i64,
+            }),
+            (start, end) if start > end => Err(EvalError::InvalidRange {
+                range,
+                limit: length as i64,
+            }),
+            (_, end) if end > length as i64 => Err(EvalError::InvalidRange {
+                range,
+                limit: length as i64,
+            }),
+            (start, end) => Ok((start as usize, end as usize)),
+        }
+    }
+
     fn eval_identifier(&self, name: &str, env: Env) -> Result<Object> {
         if let Some(value) = env.get(name) {
             return Ok(value);
@@ -288,6 +301,7 @@ impl Evaluator {
             "first" => FunctionType::First,
             "last" => FunctionType::Last,
             "rest" => FunctionType::Rest,
+            "slice" => FunctionType::Slice,
             _ => {
                 return Err(EvalError::IdentifierNotFound {
                     name: name.to_string(),
@@ -322,12 +336,7 @@ impl Evaluator {
                 let array_expr = self.eval_expression(array, env.clone())?;
                 let element = self.eval_expression(element, env.clone())?;
 
-                let Object::Array(mut mut_array) = array_expr else {
-                    return Err(EvalError::expected_type(
-                        ObjectType::Array,
-                        array_expr.object_type(),
-                    ));
-                };
+                let mut mut_array = array_expr.expect_array()?;
 
                 mut_array.push(element);
 
@@ -341,12 +350,7 @@ impl Evaluator {
                 let [array] = self.expect_n_arguments::<_, 1>(arguments)?;
                 let array = self.eval_expression(array, env)?;
 
-                let Object::Array(array) = array else {
-                    return Err(EvalError::expected_type(
-                        ObjectType::Array,
-                        array.object_type(),
-                    ));
-                };
+                let array = array.expect_array()?;
 
                 match function_type {
                     FunctionType::First => array.first().ok_or(EvalError::EmptyArray).cloned(),
@@ -360,6 +364,20 @@ impl Evaluator {
                     }
                     other => unreachable!("unhandled branch in eval_builtin_function: {other:?}"),
                 }
+            }
+            FunctionType::Slice => {
+                let [array, start, end] = self.expect_n_arguments::<_, 3>(arguments)?;
+                let array = self.eval_expression(array, env.clone())?;
+                let start = self.eval_expression(start, env.clone())?;
+                let end = self.eval_expression(end, env.clone())?;
+
+                let array = array.expect_array()?;
+                let start = start.expect_integer()?;
+                let end = end.expect_integer()?;
+
+                let (start, end) = self.validate_range((start, end), array.len())?;
+
+                Ok(Object::Array(array[start..end].to_vec()))
             }
         }
     }
@@ -719,6 +737,14 @@ mod tests {
             ("last([])", "empty array"),
             ("rest([])", "empty array"),
             ("rest([1])", "empty array"),
+            (
+                "slice([1], 0, 2)",
+                "invalid range: range must be between 0..1, got 0..2 instead",
+            ),
+            (
+                "slice([], 0, 1)",
+                "invalid range: range must be between 0..0, got 0..1 instead",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -754,6 +780,27 @@ mod tests {
             (
                 "rest([1, 2, 3])",
                 Object::Array(vec![Object::Integer(2), Object::Integer(3)]),
+            ),
+            ("slice([1, 2, 3], 0, 0)", Object::Array(vec![])),
+            (
+                "slice([1, 2, 3], 0, 1)",
+                Object::Array(vec![Object::Integer(1)]),
+            ),
+            (
+                "slice([1, 2, 3], 0, 2)",
+                Object::Array(vec![Object::Integer(1), Object::Integer(2)]),
+            ),
+            (
+                "slice([1, 2, 3], 0, 3)",
+                Object::Array(vec![
+                    Object::Integer(1),
+                    Object::Integer(2),
+                    Object::Integer(3),
+                ]),
+            ),
+            (
+                "slice([1, 2, 3], 1, 2)",
+                Object::Array(vec![Object::Integer(2)]),
             ),
         ];
 

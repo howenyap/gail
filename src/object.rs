@@ -27,6 +27,7 @@ pub enum FunctionType {
     First,
     Last,
     Rest,
+    Slice,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -250,6 +251,46 @@ impl Object {
             Object::String(value) => Some(value.len()),
             Object::Array(value) => Some(value.len()),
             _ => None,
+        }
+    }
+
+    pub fn expect_integer(self) -> Result<i64, EvalError> {
+        match self {
+            Object::Integer(value) => Ok(value),
+            obj => Err(EvalError::expected_type(
+                ObjectType::Integer,
+                obj.object_type(),
+            )),
+        }
+    }
+
+    pub fn expect_array(self) -> Result<Vec<Object>, EvalError> {
+        match self {
+            Object::Array(value) => Ok(value),
+            obj => Err(EvalError::expected_type(
+                ObjectType::Array,
+                obj.object_type(),
+            )),
+        }
+    }
+
+    pub fn expect_string(self) -> Result<String, EvalError> {
+        match self {
+            Object::String(value) => Ok(value),
+            obj => Err(EvalError::expected_type(
+                ObjectType::String,
+                obj.object_type(),
+            )),
+        }
+    }
+
+    pub fn expect_boolean(self) -> Result<bool, EvalError> {
+        match self {
+            Object::Boolean(value) => Ok(value),
+            obj => Err(EvalError::expected_type(
+                ObjectType::Boolean,
+                obj.object_type(),
+            )),
         }
     }
 }
