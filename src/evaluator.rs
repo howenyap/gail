@@ -230,7 +230,7 @@ impl Evaluator {
         let index = self.eval_expression(index, env)?;
 
         let Object::Integer(index) = index else {
-            return Err(EvalError::ExpectedSingleType {
+            return Err(EvalError::ExpectedType {
                 expected: ObjectType::Integer,
                 got: index.object_type(),
             });
@@ -238,7 +238,7 @@ impl Evaluator {
 
         if let Object::Array(ref array) = left {
             let index = self.validate_index(index, array.len())?;
-            
+
             return match array.get(index) {
                 Some(element) => Ok(element.clone()),
                 None => Err(EvalError::IndexOutOfBounds {
@@ -282,12 +282,17 @@ impl Evaluator {
             return Ok(value);
         }
 
-        match name {
-            "len" => Ok(Object::BuiltinFunction(FunctionType::Len)),
-            _ => Err(EvalError::IdentifierNotFound {
-                name: name.to_string(),
-            }),
-        }
+        let function_type = match name {
+            "len" => FunctionType::Len,
+            "push" => FunctionType::Push,
+            _ => {
+                return Err(EvalError::IdentifierNotFound {
+                    name: name.to_string(),
+                });
+            }
+        };
+
+        Ok(Object::BuiltinFunction(function_type))
     }
 
     fn eval_builtin_function(
@@ -314,6 +319,32 @@ impl Evaluator {
                         object: argument.object_type(),
                     })
                 }
+            }
+            FunctionType::Push => {
+                let [array, element] = arguments else {
+                    return Err(EvalError::InvalidArgumentCount {
+                        expected: 2,
+                        got: arguments.len(),
+                    });
+                };
+
+                let element = self.eval_expression(element, env.clone())?;
+                let array_expr = self.eval_expression(array, env.clone())?;
+
+                let Object::Array(mut mut_array) = array_expr else {
+                    return Err(EvalError::ExpectedType {
+                        expected: ObjectType::Array,
+                        got: array_expr.object_type(),
+                    });
+                };
+
+                mut_array.push(element);
+
+                if let Expression::Ident { value: name } = array {
+                    env.set(name, Object::Array(mut_array));
+                }
+
+                Ok(Object::Null)
             }
         }
     }

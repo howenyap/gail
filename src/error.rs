@@ -59,7 +59,7 @@ pub enum EvalError {
         expected: usize,
         got: usize,
     },
-    ExpectedSingleType {
+    ExpectedType {
         expected: ObjectType,
         got: ObjectType,
     },
@@ -110,7 +110,7 @@ impl Display for EvalError {
 
                 write!(f, "expected {expected} {arg}, got {got} instead")
             }
-            EvalError::ExpectedSingleType { expected, got } => {
+            EvalError::ExpectedType { expected, got } => {
                 write!(f, "expected {expected:?}, got {got:?} instead")
             }
             EvalError::ExpectedMultipleTypes { expected, got } => {

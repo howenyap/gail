@@ -23,6 +23,7 @@ pub enum Object {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
     Len,
+    Push,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -309,10 +310,7 @@ impl Display for ObjectType {
 
 impl Display for FunctionType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            FunctionType::Len => "len",
-        };
-
+        let name = format!("{:?}", self).to_lowercase();
         write!(f, "builtin function: {name}")
     }
 }
