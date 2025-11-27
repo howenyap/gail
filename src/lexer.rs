@@ -70,8 +70,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             b'"' => self.read_string(),
-            b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b'{' | b'}' | b'[' | b']'
-            | b',' | b';' => {
+            b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b'{' | b'}' | b'[' | b']' | b',' | b';' => {
                 let token = Token::from_char(ch);
                 self.read_char();
                 token
@@ -292,9 +291,8 @@ if (5 < 10) {
             (Eof, ""),
         ];
 
-        for (i, (expected_type, expected_literal)) in tests.iter().enumerate() {
+        for (expected_type, expected_literal) in tests.iter() {
             let token = lexer.next_token();
-            eprintln!("token {i}: {token:?}");
             assert_eq!(expected_type, token.token_type());
             assert_eq!(*expected_literal, token.literal());
         }

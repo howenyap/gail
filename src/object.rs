@@ -3,6 +3,7 @@ use std::fmt::{self, Debug, Display};
 use crate::ast::Expression;
 use crate::environment::Env;
 use crate::error::EvalError;
+use crate::utils::join_with_separator;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -14,6 +15,7 @@ pub enum Object {
     ReturnValue(Box<Object>),
     Function {
         parameters: Vec<String>,
+        // invariant: expression must be Block
         body: Box<Expression>,
         env: Env,
     },
@@ -28,6 +30,7 @@ pub enum FunctionType {
     Last,
     Rest,
     Slice,
+    Print,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -48,12 +51,11 @@ pub trait ObjectTrait {
 }
 
 impl Object {
-    pub fn is_return_value(&self) -> bool {
-        matches!(self, Object::ReturnValue(_))
-    }
-
     pub fn is_truthy(&self) -> bool {
-        !matches!(self, Object::Boolean(false) | Object::Null)
+        !matches!(
+            self,
+            Object::Boolean(false) | Object::Null | Object::Integer(0)
+        )
     }
 
     pub fn r#true() -> Self {
@@ -272,6 +274,48 @@ impl Object {
         Ok(evaluated)
     }
 
+    pub fn index(&self, index: i64) -> Result<Object, EvalError> {
+        match self {
+            Object::Array(value) => {
+                let index = self.validate_index(index, value.len())?;
+                // safety: validate_index checks bounds
+                let element = value[index].clone();
+
+                Ok(element)
+            }
+            Object::String(value) => {
+                let index = self.validate_index(index, value.len())?;
+                // safety: validate_index checks bounds
+                // note: only correct for ascii strings
+                let char = value.chars().nth(index).unwrap();
+
+                Ok(Object::String(char.to_string()))
+            }
+            _ => Err(EvalError::NotIndexable {
+                object: self.object_type(),
+            }),
+        }
+    }
+
+    // checks if i64 can be converted to usize, and bounds checks
+    fn validate_index(&self, index: i64, length: usize) -> Result<usize, EvalError> {
+        let index = if index >= 0 {
+            index
+        } else {
+            length as i64 + index
+        };
+
+        let Ok(index) = index.try_into() else {
+            return Err(EvalError::IndexOutOfRange { index, length });
+        };
+
+        if index >= length {
+            return Err(EvalError::IndexOutOfBounds { index, length });
+        }
+
+        Ok(index)
+    }
+
     pub fn indexable_types() -> &'static [ObjectType] {
         &[ObjectType::String, ObjectType::Array]
     }
@@ -345,11 +389,7 @@ impl ObjectTrait for Object {
             Object::Boolean(value) => value.to_string(),
             Object::String(value) => value.to_string(),
             Object::Array(value) => {
-                let elements: String = value
-                    .iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
+                let elements = join_with_separator(value, ", ");
 
                 format!("[{elements}]")
             }
@@ -358,11 +398,7 @@ impl ObjectTrait for Object {
             Object::Function {
                 parameters, body, ..
             } => {
-                let params: String = parameters
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
+                let params = join_with_separator(parameters, ", ");
 
                 format!("fn({params}) {{\n{body}\n}}")
             }

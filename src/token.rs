@@ -120,13 +120,20 @@ impl Token<'_> {
     pub fn precedence(&self) -> Precedence {
         match self.token_type {
             TokenType::Equal | TokenType::NotEqual => Precedence::Equals,
-            TokenType::LessThan | TokenType::GreaterThan | TokenType::LessThanOrEqual | TokenType::GreaterThanOrEqual => Precedence::LessGreater,
+            TokenType::LessThan
+            | TokenType::GreaterThan
+            | TokenType::LessThanOrEqual
+            | TokenType::GreaterThanOrEqual => Precedence::LessGreater,
             TokenType::Plus | TokenType::Minus => Precedence::Sum,
             TokenType::Asterisk | TokenType::Slash => Precedence::Product,
             TokenType::Lparen => Precedence::Call,
             TokenType::Lbracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
+    }
+
+    pub fn bool(&self) -> bool {
+        matches!(self.token_type, TokenType::True)
     }
 }
 

@@ -6,6 +6,10 @@ use std::io::Write;
 
 pub struct Repl;
 
+const INTRO: &str = "Welcome to Gail! Type \\exit to exit.";
+const PROMPT: &str = "$ ";
+const EXIT_COMMAND: &str = "\\exit";
+
 impl Repl {
     pub fn run() -> io::Result<()> {
         let input = io::stdin();
@@ -15,12 +19,14 @@ impl Repl {
         let evaluator = Evaluator::new();
         let env = Env::new();
 
+        writeln!(output, "{INTRO}")?;
+
         loop {
-            write!(output, ">> ")?;
+            write!(output, "{PROMPT}")?;
             output.flush()?;
 
             input.read_line(&mut line)?;
-            if line.is_empty() {
+            if line.is_empty() || line.trim() == EXIT_COMMAND {
                 break;
             }
 

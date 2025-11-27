@@ -1,4 +1,3 @@
-use crate::token::Token;
 use std::fmt::{self, Display};
 
 use super::Statement;
@@ -59,31 +58,25 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn ident(token: &Token) -> Self {
-        Self::Ident {
-            value: token.to_string(),
-        }
+    pub fn ident(value: String) -> Self {
+        Self::Ident { value }
     }
 
     pub fn int(value: i64) -> Self {
         Self::Int { value }
     }
 
-    pub fn bool(value: &Token) -> Self {
-        Self::Bool {
-            value: value.to_string() == "true",
-        }
+    pub fn bool(value: bool) -> Self {
+        Self::Bool { value }
     }
 
-    pub fn string(token: &Token) -> Self {
-        Self::String {
-            value: token.to_string(),
-        }
+    pub fn string(value: String) -> Self {
+        Self::String { value }
     }
 
-    pub fn prefix(token: &Token, right: Expression) -> Self {
+    pub fn prefix(operator: String, right: Expression) -> Self {
         Self::Prefix {
-            operator: token.to_string(),
+            operator,
             right: Box::new(right),
         }
     }
@@ -100,10 +93,10 @@ impl Expression {
         }
     }
 
-    pub fn infix(token: &Token, left: Expression, right: Expression) -> Self {
+    pub fn infix(operator: String, left: Expression, right: Expression) -> Self {
         Self::Infix {
             left: Box::new(left),
-            operator: token.to_string(),
+            operator,
             right: Box::new(right),
         }
     }
@@ -138,6 +131,14 @@ impl Expression {
     }
 }
 
+fn comma_separated<T: Display>(items: &[T]) -> String {
+    items
+        .iter()
+        .map(|item| item.to_string())
+        .collect::<Vec<String>>()
+        .join(", ")
+}
+
 impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -160,12 +161,7 @@ impl Display for Expression {
                 None => write!(f, "if {condition} {consequence}"),
             },
             Self::Function { parameters, body } => {
-                let params: String = parameters
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
-
+                let params = comma_separated(parameters);
                 write!(f, "fn({params}) {body} ")
             }
             Self::Block { statements } => {
@@ -176,21 +172,11 @@ impl Display for Expression {
                 function,
                 arguments,
             } => {
-                let args: String = arguments
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
-
+                let args = comma_separated(arguments);
                 write!(f, "{function}({args})")
             }
             Self::Array { elements } => {
-                let elements: String = elements
-                    .iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
-
+                let elements = comma_separated(elements);
                 write!(f, "[{elements}]")
             }
             Self::Index { left, index } => {

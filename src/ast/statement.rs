@@ -33,9 +33,9 @@ impl Statement {
 impl Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Statement::Let { name, value, .. } => write!(f, "let {name} = {value};"),
-            Statement::Return { value, .. } => write!(f, "return {value};"),
-            Statement::Expression { expression, .. } => write!(f, "{expression}"),
+            Statement::Let { name, value } => write!(f, "let {name} = {value};"),
+            Statement::Return { value } => write!(f, "return {value};"),
+            Statement::Expression { expression } => write!(f, "{expression}"),
         }
     }
 }

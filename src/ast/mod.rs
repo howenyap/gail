@@ -4,8 +4,10 @@ mod statement;
 pub use expression::Expression;
 pub use statement::Statement;
 
+use crate::error::ParseErrors;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use std::fmt;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Precedence {
@@ -25,8 +27,6 @@ impl Default for Precedence {
     }
 }
 
-use std::fmt;
-
 #[derive(Debug, PartialEq)]
 pub struct Program {
     statements: Vec<Statement>,
@@ -37,22 +37,20 @@ impl Program {
         Self { statements }
     }
 
-    #[allow(dead_code)]
-    pub fn from_input(input: &str) -> Result<Self, &'static str> {
+    pub fn from_input(input: &str) -> Result<Self, ParseErrors> {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
 
-        if parser.has_errors() {
-            parser.print_errors();
-            Err("Failed to parse program")
+        if let Some(errors) = parser.errors() {
+            Err(ParseErrors::new(errors))
         } else {
             Ok(program)
         }
     }
 
-    pub fn statements(&self) -> &[Statement] {
-        &self.statements
+    pub fn statements(&self) -> impl Iterator<Item = &Statement> {
+        self.statements.iter()
     }
 }
 

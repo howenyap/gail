@@ -11,7 +11,16 @@ impl Evaluator {
     }
 
     pub fn eval(&self, program: &Program, env: Env) -> Result<Object> {
-        self.eval_program(program, env)
+        let mut result = Object::Null;
+
+        for stmt in program.statements() {
+            match self.eval_statement(stmt, env.clone())? {
+                Object::ReturnValue(value) => return Ok(*value),
+                other => result = other,
+            }
+        }
+
+        Ok(result)
     }
 
     fn eval_expression(&self, expr: &Expression, env: Env) -> Result<Object> {
@@ -54,20 +63,6 @@ impl Evaluator {
             Statement::Return { value } => self.eval_return_statement(value, env),
             Statement::Let { name, value } => self.eval_let_statement(name, value, env),
         }
-    }
-
-    fn eval_program(&self, prog: &Program, env: Env) -> Result<Object> {
-        let mut result = Object::Null;
-
-        for stmt in prog.statements().iter() {
-            result = self.eval_statement(stmt, env.clone())?;
-
-            if let Object::ReturnValue(value) = result {
-                return Ok(*value);
-            }
-        }
-
-        Ok(result)
     }
 
     fn eval_prefix_expression(
@@ -141,7 +136,7 @@ impl Evaluator {
         for stmt in statements.iter() {
             result = self.eval_statement(stmt, env.clone())?;
 
-            if result.is_return_value() {
+            if let Object::ReturnValue(_) = result {
                 return Ok(result);
             }
         }
@@ -160,7 +155,7 @@ impl Evaluator {
         Object::Function {
             parameters,
             body: Box::new(body.clone()),
-            env: env.clone(),
+            env,
         }
     }
 
@@ -190,7 +185,7 @@ impl Evaluator {
         let arguments = arguments
             .iter()
             .map(|a| self.eval_expression(a, env.clone()))
-            .collect::<Result<Vec<Object>>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         if parameters.len() != arguments.len() {
             return Err(EvalError::invalid_argument_count(
@@ -214,7 +209,7 @@ impl Evaluator {
             return Ok(Object::Array(vec![]));
         }
 
-        let elements: Vec<_> = elements
+        let elements = elements
             .iter()
             .map(|e| self.eval_expression(e, env.clone()))
             .collect::<Result<Vec<_>>>()?;
@@ -230,48 +225,9 @@ impl Evaluator {
     ) -> Result<Object> {
         let left = self.eval_expression(left, env.clone())?;
         let index = self.eval_expression(index, env)?;
-
         let index = index.expect_integer()?;
 
-        if let Object::Array(ref array) = left {
-            let index = self.validate_index(index, array.len())?;
-
-            return match array.get(index) {
-                Some(element) => Ok(element.clone()),
-                None => Err(EvalError::IndexOutOfBounds {
-                    index,
-                    length: array.len(),
-                }),
-            };
-        };
-
-        if let Object::String(ref string) = left {
-            let index = self.validate_index(index, string.len())?;
-
-            return match string.chars().nth(index) {
-                Some(char) => Ok(Object::String(char.to_string())),
-                None => Err(EvalError::IndexOutOfBounds {
-                    index,
-                    length: string.len(),
-                }),
-            };
-        }
-
-        Err(EvalError::NotIndexable {
-            object: left.object_type(),
-        })
-    }
-
-    fn validate_index(&self, index: i64, length: usize) -> Result<usize> {
-        let index = if index >= 0 {
-            index
-        } else {
-            length as i64 + index
-        };
-
-        index
-            .try_into()
-            .map_err(|_| EvalError::IndexOutOfRange { index })
+        left.index(index)
     }
 
     fn validate_range(&self, range: (i64, i64), length: usize) -> Result<(usize, usize)> {
@@ -304,6 +260,7 @@ impl Evaluator {
             "last" => FunctionType::Last,
             "rest" => FunctionType::Rest,
             "slice" => FunctionType::Slice,
+            "print" => FunctionType::Print,
             _ => {
                 return Err(EvalError::IdentifierNotFound {
                     name: name.to_string(),
@@ -335,24 +292,24 @@ impl Evaluator {
             }
             FunctionType::Push => {
                 let [array, element] = self.expect_n_arguments::<_, 2>(arguments)?;
-                let array_expr = self.eval_expression(array, env.clone())?;
                 let element = self.eval_expression(element, env.clone())?;
-
-                let mut mut_array = array_expr.expect_array()?;
+                let mut mut_array = self
+                    .eval_expression(array, env.clone())
+                    .and_then(|o| o.expect_array())?;
 
                 mut_array.push(element);
 
                 if let Expression::Ident { value: name } = array {
-                    env.set(name, Object::Array(mut_array));
+                    env.set(name, Object::Array(mut_array.clone()));
                 }
 
-                Ok(Object::Null)
+                Ok(Object::Array(mut_array))
             }
             FunctionType::First | FunctionType::Last | FunctionType::Rest => {
                 let [array] = self.expect_n_arguments::<_, 1>(arguments)?;
-                let array = self.eval_expression(array, env)?;
-
-                let array = array.expect_array()?;
+                let array = self
+                    .eval_expression(array, env)
+                    .and_then(|o| o.expect_array())?;
 
                 match function_type {
                     FunctionType::First => array.first().ok_or(EvalError::EmptyArray).cloned(),
@@ -369,17 +326,27 @@ impl Evaluator {
             }
             FunctionType::Slice => {
                 let [array, start, end] = self.expect_n_arguments::<_, 3>(arguments)?;
-                let array = self.eval_expression(array, env.clone())?;
-                let start = self.eval_expression(start, env.clone())?;
-                let end = self.eval_expression(end, env.clone())?;
-
-                let array = array.expect_array()?;
-                let start = start.expect_integer()?;
-                let end = end.expect_integer()?;
+                let array = self
+                    .eval_expression(array, env.clone())
+                    .and_then(|o| o.expect_array())?;
+                let start = self
+                    .eval_expression(start, env.clone())
+                    .and_then(|o| o.expect_integer())?;
+                let end = self
+                    .eval_expression(end, env.clone())
+                    .and_then(|o| o.expect_integer())?;
 
                 let (start, end) = self.validate_range((start, end), array.len())?;
 
                 Ok(Object::Array(array[start..end].to_vec()))
+            }
+            FunctionType::Print => {
+                let [argument] = self.expect_n_arguments::<_, 1>(arguments)?;
+                let argument = self.eval_expression(argument, env.clone())?;
+
+                println!("{}", argument.inspect());
+
+                Ok(Object::Null)
             }
         }
     }
@@ -452,8 +419,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_integer_object(expected, evaluated);
+            test_integer_object(expected, test_eval(input));
         }
     }
 
@@ -479,8 +445,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_boolean_object(expected, evaluated);
+            test_boolean_object(expected, test_eval(input));
         }
     }
 
@@ -495,9 +460,8 @@ mod tests {
             ("3 * \"hi\"", "hihihi"),
         ];
 
-        for (input, expected) in tests.iter() {
-            let evaluated = test_eval(input);
-            test_string_object(expected, evaluated);
+        for (input, expected) in tests {
+            test_string_object(expected, test_eval(input));
         }
     }
 
@@ -524,8 +488,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -541,8 +504,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -566,8 +528,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_boolean_object(expected, evaluated);
+            test_boolean_object(expected, test_eval(input));
         }
     }
 
@@ -584,8 +545,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(evaluated, expected);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -611,8 +571,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -629,8 +588,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -693,8 +651,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
@@ -813,8 +770,7 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
-            test_object(expected, evaluated);
+            test_object(expected, test_eval(input));
         }
     }
 
