@@ -1,18 +1,18 @@
 use crate::object::{Object, ObjectType};
 use crate::token::TokenType;
 use crate::utils::{join_with_separator, to_plural};
-use thiserror::Error;
 
+use thiserror::Error;
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum ParseError {
     #[error("expected next token to be {expected:?}, got {found} instead")]
     UnexpectedToken { found: String, expected: TokenType },
     #[error("invalid integer")]
     InvalidInteger,
-    #[error("unknown prefix operator: {token}")]
-    UnknownPrefixOperator { token: String },
-    #[error("unknown infix operator: {token}")]
-    UnknownInfixOperator { token: String },
+    #[error("unknown prefix operator: {operator}")]
+    UnknownPrefixOperator { operator: String },
+    #[error("unknown infix operator: {operator}")]
+    UnknownInfixOperator { operator: String },
 }
 
 #[derive(Debug, PartialEq, Error)]
@@ -97,5 +97,13 @@ pub struct ParseErrors(Vec<ParseError>);
 impl ParseErrors {
     pub fn new(errors: Vec<ParseError>) -> Self {
         Self(errors)
+    }
+}
+
+impl Iterator for ParseErrors {
+    type Item = ParseError;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
     }
 }

@@ -40,7 +40,9 @@ fn main() {
 
 fn run_app(args: Args) -> Result<(), AppError> {
     match args.command {
-        Some(Command::Repl) => Repl::run()?,
+        Some(Command::Repl) => {
+            Repl::run()?;
+        }
         None => {
             let file_path = args.file.ok_or(AppError::MissingInputFile)?;
             let input = std::fs::read_to_string(&file_path)?;

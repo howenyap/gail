@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
             If => self.parse_if_expression(),
             Function => self.parse_function_literal(),
             _ => Err(ParseError::UnknownPrefixOperator {
-                token: self.current_token.literal().to_string(),
+                operator: self.current_token.literal().to_string(),
             }),
         }
     }
@@ -114,7 +114,7 @@ impl<'a> Parser<'a> {
             Lparen => self.parse_call_expression(left),
             Lbracket => self.parse_index_expression(left),
             _ => Err(ParseError::UnknownInfixOperator {
-                token: self.current_token.literal().to_string(),
+                operator: self.current_token.literal().to_string(),
             }),
         }
     }
