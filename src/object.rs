@@ -350,6 +350,7 @@ impl Object {
         match self {
             Object::String(value) => Some(value.len()),
             Object::Array(value) => Some(value.len()),
+            Object::HashMap(value) => Some(value.len()),
             _ => None,
         }
     }
