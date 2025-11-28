@@ -1,16 +1,19 @@
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
+use std::hash::Hash;
 
 use crate::ast::Expression;
 use crate::environment::Env;
 use crate::error::EvalError;
 use crate::utils::join_with_separator;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
     String(String),
     Array(Vec<Object>),
+    #[default]
     Null,
     Unit,
     ReturnValue(Box<Object>),
@@ -21,18 +24,7 @@ pub enum Object {
         env: Env,
     },
     BuiltinFunction(FunctionType),
-    HashMap(Vec<(Object, Object)>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum FunctionType {
-    Len,
-    Push,
-    First,
-    Last,
-    Rest,
-    Slice,
-    Print,
+    HashMap(HashMap<HashKey, Object>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -47,6 +39,24 @@ pub enum ObjectType {
     Function,
     BuiltinFunction,
     HashMap,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HashKey {
+    Integer(i64),
+    Boolean(bool),
+    String(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunctionType {
+    Len,
+    Push,
+    First,
+    Last,
+    Rest,
+    Slice,
+    Print,
 }
 
 pub trait ObjectTrait {
@@ -300,21 +310,8 @@ impl Object {
                 Ok(Object::String(char.to_string()))
             }
             Object::HashMap(value) => {
-                if !index.is_hashable() {
-                    return Err(EvalError::UnhashableObject {
-                        object: index.object_type(),
-                    });
-                }
-
-                let element = value
-                    .iter()
-                    .find(|(key, _)| {
-                        key.equal(&index)
-                            .is_ok_and(|o| matches!(o, Object::Boolean(true)))
-                    })
-                    .map(|(_, value)| value.clone())
-                    .unwrap_or(Object::Null);
-
+                let hash_key = index.to_hash_key()?;
+                let element = value.get(&hash_key).cloned().unwrap_or_default();
                 Ok(element)
             }
             _ => Err(EvalError::NotIndexable {
@@ -360,6 +357,17 @@ impl Object {
             self,
             Object::Integer(_) | Object::Boolean(_) | Object::String(_)
         )
+    }
+
+    pub fn to_hash_key(&self) -> Result<HashKey, EvalError> {
+        match self {
+            Object::Integer(i) => Ok(HashKey::Integer(*i)),
+            Object::Boolean(b) => Ok(HashKey::Boolean(*b)),
+            Object::String(s) => Ok(HashKey::String(s.clone())),
+            _ => Err(EvalError::UnhashableObject {
+                object: self.object_type(),
+            }),
+        }
     }
 
     pub fn expect_integer(self) -> Result<i64, EvalError> {
@@ -440,10 +448,17 @@ impl ObjectTrait for Object {
                 format!("fn({params}) {{\n{body}\n}}")
             }
             Object::BuiltinFunction(function_type) => function_type.to_string(),
-            Object::HashMap(pairs) => {
-                let pairs = pairs
+            Object::HashMap(map) => {
+                let pairs = map
                     .iter()
-                    .map(|(key, value)| format!("{key}: {value}"))
+                    .map(|(key, value)| {
+                        let key_str = match key {
+                            HashKey::Integer(i) => i.to_string(),
+                            HashKey::Boolean(b) => b.to_string(),
+                            HashKey::String(s) => s.clone(),
+                        };
+                        format!("{key_str}: {value}")
+                    })
                     .collect::<Vec<String>>()
                     .join(", ");
 

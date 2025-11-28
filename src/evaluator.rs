@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::error::EvalError;
@@ -231,21 +233,20 @@ impl Evaluator {
     }
 
     fn eval_hash_expression(&self, pairs: &[(Expression, Expression)], env: Env) -> Result<Object> {
-        if pairs.is_empty() {
-            return Ok(Object::HashMap(vec![]));
-        }
-
-        let pairs = pairs
+        let map = pairs
             .iter()
-            .map(|(key, value)| {
-                let key = self.eval_expression(key, env.clone())?;
-                let value = self.eval_expression(value, env.clone())?;
+            .map(|(key_expr, value_expr)| {
+                let key = self
+                    .eval_expression(key_expr, env.clone())
+                    .and_then(|obj| obj.to_hash_key())?;
+
+                let value = self.eval_expression(value_expr, env.clone())?;
 
                 Ok((key, value))
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<HashMap<_, _>>>()?;
 
-        Ok(Object::HashMap(pairs))
+        Ok(Object::HashMap(map))
     }
 
     fn validate_range(&self, range: (i64, i64), length: usize) -> Result<(usize, usize)> {
@@ -414,7 +415,7 @@ mod tests {
     use super::*;
     use crate::ast::Program;
     use crate::environment::Env;
-    use crate::object::Object;
+    use crate::object::{HashKey, Object};
 
     #[test]
     fn test_eval_integer_expression() {
@@ -817,14 +818,14 @@ mod tests {
         }"#;
         let evaluated = test_eval(input);
 
-        let expected = Object::HashMap(vec![
-            (Object::String("one".to_string()), Object::Integer(1)),
-            (Object::String("two".to_string()), Object::Integer(2)),
-            (Object::String("three".to_string()), Object::Integer(3)),
-            (Object::Integer(4), Object::Integer(4)),
-            (Object::Boolean(true), Object::Integer(5)),
-            (Object::Boolean(false), Object::Integer(6)),
-        ]);
+        let expected = Object::HashMap(HashMap::from([
+            (HashKey::String("one".to_string()), Object::Integer(1)),
+            (HashKey::String("two".to_string()), Object::Integer(2)),
+            (HashKey::String("three".to_string()), Object::Integer(3)),
+            (HashKey::Integer(4), Object::Integer(4)),
+            (HashKey::Boolean(true), Object::Integer(5)),
+            (HashKey::Boolean(false), Object::Integer(6)),
+        ]));
 
         test_object(expected, evaluated);
     }
@@ -863,26 +864,21 @@ mod tests {
                 assert_eq!(expected.len(), received.len());
 
                 expected
-                    .iter()
-                    .zip(received.iter())
-                    .for_each(|(expected, received)| {
-                        test_object(received.clone(), expected.clone())
-                    });
+                    .into_iter()
+                    .zip(received.into_iter())
+                    .for_each(|(expected, received)| test_object(received, expected));
             }
             (Object::String(expected), Object::String(received)) => assert_eq!(expected, received),
             (Object::HashMap(expected), Object::HashMap(received)) => {
                 assert_eq!(expected.len(), received.len());
 
-                expected
-                    .iter()
-                    .zip(received.iter())
-                    .for_each(|(expected, received)| {
-                        let (expected_key, expected_value) = expected;
-                        let (received_key, received_value) = received;
+                for (key, expected_value) in expected.iter() {
+                    let received_value = received
+                        .get(key)
+                        .expect("missing key");
 
-                        test_object(expected_key.clone(), received_key.clone());
-                        test_object(expected_value.clone(), received_value.clone());
-                    });
+                    test_object(received_value.clone(), expected_value.clone());
+                }
             }
             (expected, received) => {
                 todo!("unhandled branch in test_object: {expected:?} != {received:?}")
