@@ -364,7 +364,7 @@ impl Evaluator {
 
                 println!("{}", argument.inspect());
 
-                Ok(Object::Null)
+                Ok(Object::Unit)
             }
         }
     }
@@ -391,7 +391,7 @@ impl Evaluator {
 
         env.set(name, value);
 
-        Ok(Object::Null)
+        Ok(Object::Unit)
     }
 
     fn expect_n_arguments<'a, T, const N: usize>(&self, arguments: &'a [T]) -> Result<&'a [T; N]> {
@@ -855,6 +855,7 @@ mod tests {
                 assert_eq!(expected, received)
             }
             (Object::Null, Object::Null) => (),
+            (Object::Unit, Object::Unit) => (),
             (Object::ReturnValue(expected), Object::ReturnValue(received)) => {
                 test_object(*received, *expected)
             }

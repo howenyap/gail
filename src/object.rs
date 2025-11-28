@@ -12,6 +12,7 @@ pub enum Object {
     String(String),
     Array(Vec<Object>),
     Null,
+    Unit,
     ReturnValue(Box<Object>),
     Function {
         parameters: Vec<String>,
@@ -41,6 +42,7 @@ pub enum ObjectType {
     String,
     Array,
     Null,
+    Unit,
     ReturnValue,
     Function,
     BuiltinFunction,
@@ -240,6 +242,8 @@ impl Object {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left != right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left != right),
             (Object::String(left), Object::String(right)) => Object::Boolean(left != right),
+            (Object::Null, Object::Null) => Object::Boolean(false),
+
             (left, right) => {
                 return Err(EvalError::UnsupportedInfixOperator {
                     left: left.object_type(),
@@ -405,6 +409,7 @@ impl ObjectTrait for Object {
             Object::Boolean(_) => ObjectType::Boolean,
             Object::String(_) => ObjectType::String,
             Object::Null => ObjectType::Null,
+            Object::Unit => ObjectType::Unit,
             Object::ReturnValue(_) => ObjectType::ReturnValue,
             Object::Function { .. } => ObjectType::Function,
             Object::BuiltinFunction { .. } => ObjectType::BuiltinFunction,
@@ -423,7 +428,8 @@ impl ObjectTrait for Object {
 
                 format!("[{elements}]")
             }
-            Object::Null => "()".to_string(),
+            Object::Null => "null".to_string(),
+            Object::Unit => "()".to_string(),
             Object::ReturnValue(value) => value.inspect(),
             Object::Function {
                 parameters, body, ..
