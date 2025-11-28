@@ -19,6 +19,7 @@ pub enum Precedence {
     Prefix,
     Call,
     Index,
+    Hash,
 }
 
 impl Default for Precedence {

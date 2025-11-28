@@ -20,6 +20,7 @@ pub enum Object {
         env: Env,
     },
     BuiltinFunction(FunctionType),
+    HashMap(Vec<(Object, Object)>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,6 +44,7 @@ pub enum ObjectType {
     ReturnValue,
     Function,
     BuiltinFunction,
+    HashMap,
 }
 
 pub trait ObjectTrait {
@@ -216,7 +218,7 @@ impl Object {
         Ok(evaluated)
     }
 
-    pub fn equal(self, other: Self) -> Result<Self, EvalError> {
+    pub fn equal(&self, other: &Self) -> Result<Self, EvalError> {
         let evaluated = match (self, other) {
             (Object::Integer(left), Object::Integer(right)) => Object::Boolean(left == right),
             (Object::Boolean(left), Object::Boolean(right)) => Object::Boolean(left == right),
@@ -274,9 +276,10 @@ impl Object {
         Ok(evaluated)
     }
 
-    pub fn index(&self, index: i64) -> Result<Object, EvalError> {
+    pub fn index(&self, index: Object) -> Result<Object, EvalError> {
         match self {
             Object::Array(value) => {
+                let index = index.expect_integer()?;
                 let index = self.validate_index(index, value.len())?;
                 // safety: validate_index checks bounds
                 let element = value[index].clone();
@@ -284,12 +287,31 @@ impl Object {
                 Ok(element)
             }
             Object::String(value) => {
+                let index = index.expect_integer()?;
                 let index = self.validate_index(index, value.len())?;
                 // safety: validate_index checks bounds
                 // note: only correct for ascii strings
                 let char = value.chars().nth(index).unwrap();
 
                 Ok(Object::String(char.to_string()))
+            }
+            Object::HashMap(value) => {
+                if !index.is_hashable() {
+                    return Err(EvalError::UnhashableObject {
+                        object: index.object_type(),
+                    });
+                }
+
+                let element = value
+                    .iter()
+                    .find(|(key, _)| {
+                        key.equal(&index)
+                            .is_ok_and(|o| matches!(o, Object::Boolean(true)))
+                    })
+                    .map(|(_, value)| value.clone())
+                    .unwrap_or(Object::Null);
+
+                Ok(element)
             }
             _ => Err(EvalError::NotIndexable {
                 object: self.object_type(),
@@ -326,6 +348,13 @@ impl Object {
             Object::Array(value) => Some(value.len()),
             _ => None,
         }
+    }
+
+    pub fn is_hashable(&self) -> bool {
+        matches!(
+            self,
+            Object::Integer(_) | Object::Boolean(_) | Object::String(_)
+        )
     }
 
     pub fn expect_integer(self) -> Result<i64, EvalError> {
@@ -380,6 +409,7 @@ impl ObjectTrait for Object {
             Object::Function { .. } => ObjectType::Function,
             Object::BuiltinFunction { .. } => ObjectType::BuiltinFunction,
             Object::Array(_) => ObjectType::Array,
+            Object::HashMap(_) => ObjectType::HashMap,
         }
     }
 
@@ -403,6 +433,15 @@ impl ObjectTrait for Object {
                 format!("fn({params}) {{\n{body}\n}}")
             }
             Object::BuiltinFunction(function_type) => function_type.to_string(),
+            Object::HashMap(pairs) => {
+                let pairs = pairs
+                    .iter()
+                    .map(|(key, value)| format!("{key}: {value}"))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                format!("{{{pairs}}}")
+            }
         }
     }
 }

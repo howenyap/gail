@@ -29,6 +29,7 @@ pub enum TokenType {
     // Delimiters
     Comma,
     Semicolon,
+    Colon,
     Lparen,
     Rparen,
     Lbrace,
@@ -79,6 +80,7 @@ impl Token<'_> {
             b']' => Token::rbracket(),
             b',' => Token::comma(),
             b';' => Token::semicolon(),
+            b':' => Token::colon(),
             _ => Token::illegal(),
         }
     }
@@ -128,6 +130,7 @@ impl Token<'_> {
             TokenType::Asterisk | TokenType::Slash => Precedence::Product,
             TokenType::Lparen => Precedence::Call,
             TokenType::Lbracket => Precedence::Index,
+            TokenType::Colon => Precedence::Hash,
             _ => Precedence::Lowest,
         }
     }
@@ -176,6 +179,7 @@ implement_create_token! {
     // Delimiters
     (Comma, ",", comma),
     (Semicolon, ";", semicolon),
+    (Colon, ":", colon),
     (Lparen, "(", lparen),
     (Rparen, ")", rparen),
     (Lbrace, "{", lbrace),

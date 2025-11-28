@@ -91,6 +91,7 @@ impl<'a> Parser<'a> {
             Lbracket => self.parse_array_expression(),
             If => self.parse_if_expression(),
             Function => self.parse_function_literal(),
+            Lbrace => self.parse_hash_literal(),
             _ => Err(ParseError::UnknownPrefixOperator {
                 operator: self.current_token.literal().to_string(),
             }),
@@ -191,6 +192,36 @@ impl<'a> Parser<'a> {
         let body = self.parse_block_statement()?;
 
         Ok(Expression::function(parameters, body))
+    }
+
+    fn parse_hash_literal(&mut self) -> Result<Expression, ParseError> {
+        let mut pairs = vec![];
+
+        while !self.peek_token_is(TokenType::Rbrace) {
+            self.next_token();
+
+            let key = self.parse_expression(Precedence::Lowest)?;
+            if !key.hashable() {
+                return Err(ParseError::InvalidHashKey {
+                    key: key.to_string(),
+                });
+            }
+
+            self.expect_peek(TokenType::Colon)?;
+            self.next_token();
+
+            let value = self.parse_expression(Precedence::Lowest)?;
+
+            if self.peek_token_is(TokenType::Comma) {
+                self.next_token();
+            }
+
+            pairs.push((key, value));
+        }
+
+        self.expect_peek(TokenType::Rbrace)?;
+
+        Ok(Expression::hashmap(pairs))
     }
 
     fn parse_function_parameters(&mut self) -> Result<Vec<Expression>, ParseError> {
@@ -408,7 +439,7 @@ mod tests {
             };
 
             assert_eq!(expected_identifier, name.to_string());
-            test_literal_expression(value, expected_value);
+            test_literal_expression(expected_value, value);
         }
     }
 
@@ -430,7 +461,7 @@ mod tests {
                 panic!("expected return statement, got {:#?}", statements[0]);
             };
 
-            test_literal_expression(value, expected_value);
+            test_literal_expression(expected_value, value);
         }
     }
     #[test]
@@ -456,7 +487,7 @@ mod tests {
         assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
-        test_literal_expression(expression, ExpectedLiteral::Ident("foobar"));
+        test_literal_expression(ExpectedLiteral::Ident("foobar"), expression);
     }
 
     #[test]
@@ -467,7 +498,7 @@ mod tests {
         assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
-        test_literal_expression(expression, ExpectedLiteral::Int(5));
+        test_literal_expression(ExpectedLiteral::Int(5), expression);
     }
 
     #[test]
@@ -479,8 +510,8 @@ mod tests {
 
         let expression = expect_expression(&statements[0]);
         test_literal_expression(
-            expression,
             ExpectedLiteral::String("fast, reliable, productive."),
+            expression,
         );
     }
 
@@ -511,7 +542,7 @@ mod tests {
             };
 
             assert_eq!(operator, *received_op);
-            test_literal_expression(received_right, expected);
+            test_literal_expression(expected, received_right);
         }
     }
 
@@ -615,7 +646,7 @@ mod tests {
         assert_eq!(1, statements.len());
 
         let expression = expect_expression(&statements[0]);
-        test_literal_expression(expression, Ident("x"));
+        test_literal_expression(ExpectedLiteral::Ident("x"), expression);
 
         assert!(alternative.is_none());
     }
@@ -645,7 +676,7 @@ mod tests {
         let consequence_statements = expect_block_expression(consequence);
         assert_eq!(1, consequence_statements.len());
         let consequence_expression = expect_expression(&consequence_statements[0]);
-        test_literal_expression(consequence_expression, Ident("x"));
+        test_literal_expression(Ident("x"), consequence_expression);
 
         let Some(alternative) = alternative.as_ref() else {
             panic!("expected alternative block, got None");
@@ -654,7 +685,7 @@ mod tests {
         let alternative_statements = expect_block_expression(alternative);
         assert_eq!(1, alternative_statements.len());
         let alternative_expression = expect_expression(&alternative_statements[0]);
-        test_literal_expression(alternative_expression, Ident("y"));
+        test_literal_expression(Ident("y"), alternative_expression);
     }
 
     #[test]
@@ -676,8 +707,8 @@ mod tests {
         use ExpectedLiteral::*;
 
         assert_eq!(2, parameters.len());
-        test_literal_expression(&parameters[0], Ident("x"));
-        test_literal_expression(&parameters[1], Ident("y"));
+        test_literal_expression(Ident("x"), &parameters[0]);
+        test_literal_expression(Ident("y"), &parameters[1]);
 
         let body_statements = expect_block_expression(body);
         assert_eq!(1, body_statements.len());
@@ -711,6 +742,91 @@ mod tests {
             "+",
             ExpectedLiteral::Int(3),
         );
+    }
+
+    #[test]
+    fn test_parse_hash_literal() {
+        use ExpectedLiteral::*;
+
+        let input = "{\"one\": 1, \"two\": 2, \"three\": 3}";
+        let program = build_program(input);
+        let statements: Vec<_> = program.statements().collect();
+        assert_eq!(1, statements.len());
+
+        let statement = expect_expression(&statements[0]);
+
+        let expected_pairs = vec![
+            (String("one"), Int(1)),
+            (String("two"), Int(2)),
+            (String("three"), Int(3)),
+        ];
+        let pairs = expect_hash_expression(statement);
+        assert_eq!(expected_pairs.len(), pairs.len());
+
+        for ((expected_key, expected_value), (key, value)) in
+            expected_pairs.into_iter().zip(pairs.into_iter())
+        {
+            test_literal_expression(expected_key, key);
+            test_literal_expression(expected_value, value);
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_hash_literal() {
+        let input = "{}";
+        let program = build_program(input);
+        let statements: Vec<_> = program.statements().collect();
+        assert_eq!(1, statements.len());
+
+        let statement = expect_expression(&statements[0]);
+        let pairs = expect_hash_expression(statement);
+        assert_eq!(0, pairs.len());
+    }
+
+    #[test]
+    fn test_parse_hash_literal_with_expressions() {
+        use ExpectedLiteral::*;
+
+        let input = "{\"one\": 0 + 1, \"two\": 10 - 8, \"three\": 15 / 5}";
+        let program = build_program(input);
+        let statements: Vec<_> = program.statements().collect();
+        assert_eq!(1, statements.len());
+
+        let statement = expect_expression(&statements[0]);
+        let expected_pairs = vec![
+            (String("one"), (Int(0), "+", Int(1))),
+            (String("two"), (Int(10), "-", Int(8))),
+            (String("three"), (Int(15), "/", Int(5))),
+        ];
+
+        let pairs = expect_hash_expression(statement);
+        assert_eq!(expected_pairs.len(), pairs.len());
+
+        for ((expected_key, expected_value), (key, value)) in
+            expected_pairs.into_iter().zip(pairs.into_iter())
+        {
+            let (left, operator, right) = expected_value;
+
+            test_literal_expression(expected_key, key);
+            test_infix_expression(value, left, operator, right);
+        }
+    }
+
+    #[test]
+    fn test_unhashable_keys() {
+        let input = r#"
+        {[1, 2, 3]: 4}; 
+        { 5: 6 }: 7;
+        fn(x) { x; }: 8;
+        "#;
+
+        let expected = vec![
+            "invalid hash key: [1, 2, 3], only integers, booleans, and strings can be used as keys",
+            "invalid hash key: 5, only integers, booleans, and strings can be used as keys",
+            "invalid hash key: fn(x) { x; }, only integers, booleans, and strings can be used as keys",
+        ];
+
+        test_error(input, expected);
     }
 
     #[test]
@@ -760,7 +876,7 @@ mod tests {
             assert_eq!(expected.len(), parameters.len());
 
             for i in 0..expected.len() {
-                test_literal_expression(&parameters[i], ExpectedLiteral::Ident(expected[i]));
+                test_literal_expression(ExpectedLiteral::Ident(expected[i]), &parameters[i]);
             }
         }
     }
@@ -784,10 +900,10 @@ mod tests {
         };
 
         use ExpectedLiteral::*;
-        test_literal_expression(function, Ident("add"));
+        test_literal_expression(Ident("add"), function);
         assert_eq!(3, arguments.len());
 
-        test_literal_expression(&arguments[0], ExpectedLiteral::Int(1));
+        test_literal_expression(ExpectedLiteral::Int(1), &arguments[0]);
         test_infix_expression(&arguments[1], Int(2), "*", Int(3));
         test_infix_expression(&arguments[2], Int(4), "+", Int(5));
     }
@@ -808,7 +924,7 @@ mod tests {
         String(&'static str),
     }
 
-    fn test_literal_expression(expression: &Expression, expected: ExpectedLiteral) {
+    fn test_literal_expression(expected: ExpectedLiteral, expression: &Expression) {
         use ExpectedLiteral::*;
 
         match expected {
@@ -873,9 +989,9 @@ mod tests {
             panic!("expected infix expression, got {expression:#?}");
         };
 
-        test_literal_expression(received_left, expected_left);
+        test_literal_expression(expected_left, received_left);
         assert_eq!(&operator, received_op);
-        test_literal_expression(received_right, expected_right);
+        test_literal_expression(expected_right, received_right);
     }
 
     fn expect_block_expression(expression: &Expression) -> &[Statement] {
@@ -884,6 +1000,14 @@ mod tests {
         };
 
         statements
+    }
+
+    fn expect_hash_expression(expression: &Expression) -> &Vec<(Expression, Expression)> {
+        let Expression::HashMap { pairs } = expression else {
+            panic!("expected hash expression, got {expression:#?}");
+        };
+
+        pairs
     }
 
     fn build_program(input: &str) -> Program {
@@ -897,5 +1021,19 @@ mod tests {
         }
 
         program
+    }
+
+    fn test_error(input: &str, expected: Vec<&str>) {
+        let lexer = Lexer::new(input);
+        let parser = Parser::new(lexer);
+
+        if let Some(errors) = parser.errors() {
+            assert_eq!(expected.len(), errors.len());
+
+            for (expected, error) in expected.into_iter().zip(errors.iter()) {
+                let received = error.to_string();
+                assert_eq!(expected, received);
+            }
+        }
     }
 }

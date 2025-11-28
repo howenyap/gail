@@ -13,6 +13,8 @@ pub enum ParseError {
     UnknownPrefixOperator { operator: String },
     #[error("unknown infix operator: {operator}")]
     UnknownInfixOperator { operator: String },
+    #[error("invalid hash key: {key}, only integers, booleans, and strings can be used as keys")]
+    InvalidHashKey { key: String },
 }
 
 #[derive(Debug, PartialEq, Error)]
@@ -70,6 +72,8 @@ pub enum EvalError {
     EmptyArray,
     #[error("invalid range: range must be between 0..{limit}, got {}..{} instead", range.0, range.1)]
     InvalidRange { range: (i64, i64), limit: i64 },
+    #[error("unhashable object: {object:?}")]
+    UnhashableObject { object: ObjectType },
 }
 
 impl EvalError {

@@ -52,6 +52,7 @@ impl Evaluator {
             } => self.eval_call_expression(function, arguments, env)?,
             Expression::Array { elements } => self.eval_array_expression(elements, env)?,
             Expression::Index { left, index } => self.eval_index_expression(left, index, env)?,
+            Expression::HashMap { pairs } => self.eval_hash_expression(pairs, env)?,
         };
 
         Ok(evaluated)
@@ -102,7 +103,7 @@ impl Evaluator {
             ">" => left.greater_than(right),
             "<=" => left.less_than_or_equal(right),
             ">=" => left.greater_than_or_equal(right),
-            "==" => left.equal(right),
+            "==" => left.equal(&right),
             "!=" => left.not_equal(right),
             other => Err(EvalError::UnsupportedInfixOperator {
                 left: left.object_type(),
@@ -225,9 +226,26 @@ impl Evaluator {
     ) -> Result<Object> {
         let left = self.eval_expression(left, env.clone())?;
         let index = self.eval_expression(index, env)?;
-        let index = index.expect_integer()?;
 
         left.index(index)
+    }
+
+    fn eval_hash_expression(&self, pairs: &[(Expression, Expression)], env: Env) -> Result<Object> {
+        if pairs.is_empty() {
+            return Ok(Object::HashMap(vec![]));
+        }
+
+        let pairs = pairs
+            .iter()
+            .map(|(key, value)| {
+                let key = self.eval_expression(key, env.clone())?;
+                let value = self.eval_expression(value, env.clone())?;
+
+                Ok((key, value))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Object::HashMap(pairs))
     }
 
     fn validate_range(&self, range: (i64, i64), length: usize) -> Result<(usize, usize)> {
@@ -787,6 +805,47 @@ mod tests {
         test_object(expected, evaluated);
     }
 
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"{
+        "one": 10 - 9, 
+        "two": 1 + 1,
+        "thr" + "ee": 6 / 2, 
+        4: 4,
+        true: 5
+        false: 6
+        }"#;
+        let evaluated = test_eval(input);
+
+        let expected = Object::HashMap(vec![
+            (Object::String("one".to_string()), Object::Integer(1)),
+            (Object::String("two".to_string()), Object::Integer(2)),
+            (Object::String("three".to_string()), Object::Integer(3)),
+            (Object::Integer(4), Object::Integer(4)),
+            (Object::Boolean(true), Object::Integer(5)),
+            (Object::Boolean(false), Object::Integer(6)),
+        ]);
+
+        test_object(expected, evaluated);
+    }
+
+    #[test]
+    fn test_hash_index_expressions() {
+        let tests = vec![
+            (r#"{"foo": 5}["foo"]"#, Object::Integer(5)),
+            (r#"{"foo": 5}["bar"]"#, Object::Null),
+            (r#"let key = "foo"; {"foo": 5}[key]"#, Object::Integer(5)),
+            (r#"{}["foo"]"#, Object::Null),
+            (r#"{"5": 5}[5]"#, Object::Null),
+            (r#"{"true": 5}["true"]"#, Object::Integer(5)),
+            (r#"{"false": 5}["false"]"#, Object::Integer(5)),
+        ];
+
+        for (input, expected) in tests {
+            test_object(expected, test_eval(input));
+        }
+    }
+
     fn test_object(expected: Object, received: Object) {
         match (expected, received) {
             (Object::Integer(expected), Object::Integer(received)) => {
@@ -799,11 +858,31 @@ mod tests {
             (Object::ReturnValue(expected), Object::ReturnValue(received)) => {
                 test_object(*received, *expected)
             }
-            (Object::Array(expected), Object::Array(received)) => expected
-                .iter()
-                .zip(received.iter())
-                .for_each(|(expected, received)| test_object(received.clone(), expected.clone())),
+            (Object::Array(expected), Object::Array(received)) => {
+                assert_eq!(expected.len(), received.len());
+
+                expected
+                    .iter()
+                    .zip(received.iter())
+                    .for_each(|(expected, received)| {
+                        test_object(received.clone(), expected.clone())
+                    });
+            }
             (Object::String(expected), Object::String(received)) => assert_eq!(expected, received),
+            (Object::HashMap(expected), Object::HashMap(received)) => {
+                assert_eq!(expected.len(), received.len());
+
+                expected
+                    .iter()
+                    .zip(received.iter())
+                    .for_each(|(expected, received)| {
+                        let (expected_key, expected_value) = expected;
+                        let (received_key, received_value) = received;
+
+                        test_object(expected_key.clone(), received_key.clone());
+                        test_object(expected_value.clone(), received_value.clone());
+                    });
+            }
             (expected, received) => {
                 todo!("unhandled branch in test_object: {expected:?} != {received:?}")
             }

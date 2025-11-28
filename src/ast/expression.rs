@@ -55,6 +55,9 @@ pub enum Expression {
         // invariant: expression must be Integer
         index: Box<Expression>,
     },
+    HashMap {
+        pairs: Vec<(Expression, Expression)>,
+    },
 }
 
 impl Expression {
@@ -129,6 +132,21 @@ impl Expression {
             index: Box::new(index),
         }
     }
+
+    pub fn hashmap(pairs: Vec<(Expression, Expression)>) -> Self {
+        Self::HashMap { pairs }
+    }
+
+    // note:
+    // only primitive types like integers, booleans, and strings are hashable
+    // arrays and hashmaps are not hashable
+    // anything else will evalute to a primitive type
+    pub fn hashable(&self) -> bool {
+        !matches!(
+            self,
+            Expression::Array { .. } | Expression::HashMap { .. } | Expression::Function { .. }
+        )
+    }
 }
 
 fn comma_separated<T: Display>(items: &[T]) -> String {
@@ -184,6 +202,15 @@ impl Display for Expression {
                 let index = index.to_string();
 
                 write!(f, "({left}[{index}])")
+            }
+            Self::HashMap { pairs } => {
+                let pairs = pairs
+                    .iter()
+                    .map(|(key, value)| format!("{key}: {value}"))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+
+                write!(f, "{{{pairs}}}")
             }
         }
     }

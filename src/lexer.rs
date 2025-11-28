@@ -70,7 +70,8 @@ impl<'a> Lexer<'a> {
                 }
             }
             b'"' => self.read_string(),
-            b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b'{' | b'}' | b'[' | b']' | b',' | b';' => {
+            b'+' | b'-' | b'*' | b'/' | b'(' | b')' | b'{' | b'}' | b'[' | b']' | b',' | b';'
+            | b':' => {
                 let token = Token::from_char(ch);
                 self.read_char();
                 token
@@ -201,6 +202,7 @@ if (5 < 10) {
 "foobar";
 "foo bar";
 [1, 2];
+{ "foo": "bar" };
 "#;
 
         let mut lexer = Lexer::new(input);
@@ -287,6 +289,12 @@ if (5 < 10) {
             (Comma, ","),
             (Int, "2"),
             (Rbracket, "]"),
+            (Semicolon, ";"),
+            (Lbrace, "{"),
+            (String, "foo"),
+            (Colon, ":"),
+            (String, "bar"),
+            (Rbrace, "}"),
             (Semicolon, ";"),
             (Eof, ""),
         ];
