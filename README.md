@@ -79,10 +79,13 @@ Calling `times(mul_three, 2, 3)` is equivalent to:
 mul_three(mul_three(mul_three(2)))
 
 // which can be broken down to
+
 let a = mul_three(2);
 let b = mul_three(a);
 let c = mul_three(b);
-c; // 54
+
+// evaluates to 54
+c;
 ```
 
 Since gail also supports recursion, you can even do [merge sort](https://github.com/howenyap/gail/blob/main/tests/integration_tests.rs#L134-L175).
@@ -157,13 +160,13 @@ let x = 1;
 ```
 
 if (true) {
-return "true"
+  return "true"
 }
 
 if (2 > 1) {
-return "bigger"
+  return "bigger"
 } else {
-return "smaller"
+  return "smaller"
 }
 
 ```
@@ -287,9 +290,5 @@ slice([1, 2, 3], 0, 3); // [1, 2, 3]
 
 print("hello world");
 // "hello world" gets printed to the console
-
-```
-
-```
 
 ```
